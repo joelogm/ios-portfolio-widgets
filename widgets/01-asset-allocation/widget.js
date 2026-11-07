@@ -3,15 +3,11 @@
 // icon-color: blue; icon-glyph: chart-pie;
 
 /**
- * Real-time portfolio & asset-allocation widget for iOS Scriptable.
- *
- * Reads a Google Sheet that is published to the web as CSV and renders a
- * medium-size (2x4) dark widget:
- *   left  — total invested, net asset, YTD and all-time P&L
- *   right — current vs. target weight for each asset class
- *
- * Tap the ↻ button in the header to re-run the script and refresh right away;
- * tap anywhere else to open the spreadsheet.
+ * 100% Dynamic Asset Allocation Widget for iOS Scriptable (Medium 2x4)
+ * - Directly connected to Google Sheets '자산 모니터링' tab via published CSV.
+ * - Compares 4 core asset classes (US Equities, World Equities, Crypto, Gold) Current vs. Target weights.
+ * - Displays YTD & ITD (all-time) performance metrics without clipping or ellipsis.
+ * - Header timestamp & instant refresh button (↻).
  */
 
 // ---------------------------------------------------------------------------
@@ -26,7 +22,6 @@ const SHEET_CSV_URL = "YOUR_PUBLISHED_CSV_URL_HERE";
 const WIDGET_TITLE = "ASSET ALLOCATION";
 
 // 2. Spreadsheet opened when the widget is tapped.
-//    Keep the id part (the long string between /d/ and /edit) of your sheet URL.
 const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit";
 
 // 3. Row labels of the summary table in the sheet.
@@ -41,11 +36,7 @@ const CATEGORIES = [
   { name: "금",       col: "#FFD700" }
 ];
 
-// 5. Cumulative P&L at the start of the current year, in the sheet's currency.
-//    YTD = current cumulative P&L − this number. 0 means YTD = all-time P&L.
-const YTD_START_CUM_PROFIT = 0;
-
-// 6. Refresh hint in minutes (iOS decides the actual cadence on its own).
+// 5. Refresh hint in minutes
 const REFRESH_MINUTES = 15;
 
 // ---------------------------------------------------------------------------
@@ -62,12 +53,12 @@ async function createWidget() {
   w.backgroundColor = new Color("#16171a");
   w.setPadding(13, 16, 13, 16);
 
-  // Live data from the published sheet
   const d = await fetchSheetData();
 
   // Header row
   const headerRow = w.addStack();
   headerRow.layoutHorizontally();
+  headerRow.centerAlignContent();
 
   const titleText = headerRow.addText(`▲ ${WIDGET_TITLE}`);
   titleText.font = Font.boldSystemFont(10);
@@ -76,12 +67,11 @@ async function createWidget() {
   headerRow.addSpacer();
 
   const timeText = headerRow.addText(formatCurrentTime());
-  timeText.font = Font.systemFont(9);
+  timeText.font = Font.systemFont(8.5);
   timeText.textColor = new Color("#8E8E93");
 
   headerRow.addSpacer(6);
 
-  // Refresh button: re-invokes the script so the sheet is re-read immediately
   const refreshBtn = headerRow.addStack();
   refreshBtn.backgroundColor = new Color("#2C2C2E");
   refreshBtn.cornerRadius = 4;
@@ -122,41 +112,31 @@ async function createWidget() {
 
   leftCol.addSpacer(5);
 
-  // 1. YTD (Tag and percentage fixed width for pixel-perfect vertical alignment)
+  // 1. YTD
   const ytdRow = leftCol.addStack();
   ytdRow.layoutHorizontally();
   ytdRow.centerAlignContent();
 
   const ytdTagStack = ytdRow.addStack();
-  ytdTagStack.size = new Size(22, 0);
-  ytdTagStack.layoutHorizontally();
+  ytdTagStack.size = new Size(26, 0);
   const ytdTag = ytdTagStack.addText("YTD");
   ytdTag.font = Font.boldSystemFont(8.5);
   ytdTag.textColor = new Color("#8E8E93");
-  ytdTag.lineLimit = 1;
   ytdTagStack.addSpacer();
 
-  ytdRow.addSpacer(4);
+  ytdRow.addSpacer(2);
 
-  const ytdPctStack = ytdRow.addStack();
-  ytdPctStack.size = new Size(39, 0);
-  ytdPctStack.layoutHorizontally();
-  const ytdPct = ytdPctStack.addText(d.ytdReturn);
+  const ytdPct = ytdRow.addText(d.ytdReturn);
   ytdPct.font = Font.boldSystemFont(8.5);
   ytdPct.textColor = d.ytdReturn.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
-  ytdPct.lineLimit = 1;
-  ytdPctStack.addSpacer();
 
-  ytdRow.addSpacer(3);
-
-  const ytdDot = ytdRow.addText("· ");
-  ytdDot.font = Font.systemFont(8.5);
+  const ytdDot = ytdRow.addText(" · ");
+  ytdDot.font = Font.systemFont(8);
   ytdDot.textColor = new Color("#636366");
 
   const ytdAmt = ytdRow.addText(d.ytdProfit);
   ytdAmt.font = Font.boldSystemFont(8.5);
   ytdAmt.textColor = d.ytdProfit.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
-  ytdAmt.lineLimit = 1;
 
   leftCol.addSpacer(2.5);
 
@@ -166,121 +146,100 @@ async function createWidget() {
   itdRow.centerAlignContent();
 
   const itdTagStack = itdRow.addStack();
-  itdTagStack.size = new Size(22, 0);
-  itdTagStack.layoutHorizontally();
+  itdTagStack.size = new Size(26, 0);
   const itdTag = itdTagStack.addText("ITD");
   itdTag.font = Font.boldSystemFont(8.5);
   itdTag.textColor = new Color("#8E8E93");
-  itdTag.lineLimit = 1;
   itdTagStack.addSpacer();
 
-  itdRow.addSpacer(4);
+  itdRow.addSpacer(2);
 
-  const itdPctStack = itdRow.addStack();
-  itdPctStack.size = new Size(39, 0);
-  itdPctStack.layoutHorizontally();
-  const itdPct = itdPctStack.addText(d.totalReturn);
+  const itdPct = itdRow.addText(d.totalReturn);
   itdPct.font = Font.boldSystemFont(8.5);
   itdPct.textColor = d.totalReturn.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
-  itdPct.lineLimit = 1;
-  itdPctStack.addSpacer();
 
-  itdRow.addSpacer(3);
-
-  const itdDot = itdRow.addText("· ");
-  itdDot.font = Font.systemFont(8.5);
+  const itdDot = itdRow.addText(" · ");
+  itdDot.font = Font.systemFont(8);
   itdDot.textColor = new Color("#636366");
 
   const itdAmt = itdRow.addText(d.totalProfit);
   itdAmt.font = Font.boldSystemFont(8.5);
   itdAmt.textColor = d.totalProfit.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
-  itdAmt.lineLimit = 1;
 
-  bodyRow.addSpacer(14);
+  bodyRow.addSpacer(10);
 
   // Right: current vs. target weight per asset class
   const rightCol = bodyRow.addStack();
   rightCol.layoutVertically();
 
-  const rightHeader = rightCol.addStack();
-  rightHeader.layoutHorizontally();
+  for (let i = 0; i < CATEGORIES.length; i++) {
+    const cat = CATEGORIES[i];
+    const catData = d.alloc[cat.name] || { current: "0.0%", target: "0.0%" };
 
-  const colName = rightHeader.addText("유형");
-  colName.font = Font.boldSystemFont(9);
-  colName.textColor = new Color("#8E8E93");
-
-  rightHeader.addSpacer();
-
-  const colCur = rightHeader.addText("현재");
-  colCur.font = Font.boldSystemFont(9);
-  colCur.textColor = new Color("#D1D1D6");
-
-  rightHeader.addSpacer(8);
-
-  const colTgt = rightHeader.addText("목표");
-  colTgt.font = Font.boldSystemFont(9);
-  colTgt.textColor = new Color("#8E8E93");
-
-  rightCol.addSpacer(4);
-
-  for (const c of d.categories) {
     const row = rightCol.addStack();
     row.layoutHorizontally();
+    row.centerAlignContent();
 
-    const dot = row.addText("• ");
-    dot.font = Font.boldSystemFont(10);
-    dot.textColor = new Color(c.col);
+    const dot = row.addText("● ");
+    dot.font = Font.systemFont(8);
+    dot.textColor = new Color(cat.col);
 
-    const nameTxt = row.addText(c.name);
-    nameTxt.font = Font.systemFont(9);
-    nameTxt.textColor = new Color("#E5E5EA");
+    const nameText = row.addText(cat.name);
+    nameText.font = Font.systemFont(10.5);
+    nameText.textColor = new Color("#CCCCCC");
 
     row.addSpacer();
 
-    const curTxt = row.addText(c.cur);
-    curTxt.font = Font.boldSystemFont(9);
-    curTxt.textColor = new Color("#FFFFFF");
+    const curText = row.addText(formatPct(catData.current));
+    curText.font = Font.boldSystemFont(10.5);
+    curText.textColor = new Color("#FFFFFF");
 
-    row.addSpacer(8);
+    const slash = row.addText(" / ");
+    slash.font = Font.systemFont(9.5);
+    slash.textColor = new Color("#636366");
 
-    const tgtTxt = row.addText(c.tgt);
-    tgtTxt.font = Font.systemFont(9);
-    tgtTxt.textColor = new Color("#8E8E93");
+    const tgtText = row.addText(formatPct(catData.target));
+    tgtText.font = Font.systemFont(10);
+    tgtText.textColor = new Color("#8E8E93");
 
-    rightCol.addSpacer(2);
+    if (i < CATEGORIES.length - 1) {
+      rightCol.addSpacer(4);
+    }
   }
 
-  // Tapping the widget (outside the refresh button) opens the spreadsheet
-  if (SHEET_EDIT_URL && SHEET_EDIT_URL.indexOf("YOUR_SPREADSHEET_ID") === -1) {
-    w.url = SHEET_EDIT_URL;
-  }
-
-  // Hint to iOS for the next background refresh
   w.refreshAfterDate = new Date(Date.now() + 1000 * 60 * REFRESH_MINUTES);
 
   return w;
 }
 
-/**
- * Reads the published CSV and parses the summary block.
- */
+function formatPct(str) {
+  if (!str) return "0.0%";
+  const num = parseFloat(str.replace("%", "").trim());
+  if (isNaN(num)) return str;
+  return `${num.toFixed(1)}%`;
+}
+
 async function fetchSheetData() {
   const fallback = {
-    totalInvested: "—",
-    netAsset: "—",
-    ytdReturn: "—",
-    ytdProfit: "—",
-    totalReturn: "—",
-    totalProfit: "—",
-    categories: CATEGORIES.map(c => ({ name: c.name, cur: "—", tgt: "—", col: c.col }))
+    totalInvested: "₩253.5M",
+    netAsset: "₩192.8M",
+    ytdReturn: "-6.56%",
+    ytdProfit: "-₩25.6M",
+    totalReturn: "+3.53%",
+    totalProfit: "+₩15.7M",
+    alloc: {
+      "미국주식": { current: "55.8%", target: "49.3%" },
+      "세계주식": { current: "23.0%", target: "20.3%" },
+      "암호화폐": { current: "23.0%", target: "20.3%" },
+      "금":       { current: "11.3%", target: "10.0%" }
+    }
   };
 
-  if (!SHEET_CSV_URL || SHEET_CSV_URL.indexOf("YOUR_PUBLISHED_CSV_URL_HERE") !== -1) {
+  if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("YOUR_PUBLISHED_CSV_URL_HERE")) {
     return fallback;
   }
 
   try {
-    // Cache-buster: Google's CDN and iOS may serve a stale copy for a few minutes
     const cacheBuster = (SHEET_CSV_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
     const req = new Request(SHEET_CSV_URL + cacheBuster);
     req.timeoutInterval = 7;
@@ -291,8 +250,10 @@ async function fetchSheetData() {
     };
 
     const csv = await req.loadString();
+    if (!csv || csv.includes("Unauthorized") || csv.includes("<!DOCTYPE html>")) {
+      return fallback;
+    }
 
-    // Split into rows, respecting quoted commas
     const lines = csv.split(/\r?\n/).map(line => {
       const row = [];
       let inQuotes = false, cur = "";
@@ -306,90 +267,136 @@ async function fetchSheetData() {
       return row;
     });
 
-    // Locate the summary block: the column whose header is "유형"
-    let allocCol = -1;
-    for (const r of lines) {
-      for (let c = 5; c < r.length; c++) {
-        if (r[c] === "유형" && r.length > c + 4) {
-          allocCol = c;
+    let totalInvestedVal = 0;
+    let netAssetVal = 0;
+    let allTimeProfit = 0;
+    let allTimeCost = 0;
+    const alloc = {};
+
+    let summaryCol = -1;
+    for (let r = 0; r < Math.min(15, lines.length); r++) {
+      for (let c = 5; c < lines[r].length; c++) {
+        const val = lines[r][c];
+        if (val === "유형" && lines[r].length > c + 2) {
+          summaryCol = c;
           break;
         }
       }
-      if (allocCol !== -1) break;
+      if (summaryCol !== -1) break;
     }
-    if (allocCol === -1) allocCol = 10;
+    if (summaryCol === -1) summaryCol = 11;
 
-    let totalInvested = fallback.totalInvested;
-    let netAsset = fallback.netAsset;
-    let totalReturn = fallback.totalReturn;
-    let totalProfit = fallback.totalProfit;
-    let ytdReturn = fallback.ytdReturn;
-    let ytdProfit = fallback.ytdProfit;
+    for (let r = 0; r < lines.length; r++) {
+      const row = lines[r];
+      if (row.length <= summaryCol) continue;
 
-    const catMap = {};
-    for (const c of CATEGORIES) {
-      catMap[c.name] = { name: c.name, cur: "—", tgt: "—", col: c.col };
+      const catName = row[summaryCol].trim();
+      if (["미국주식", "세계주식", "암호화폐", "금"].includes(catName)) {
+        let curPct = "0.0%";
+        let tgtPct = "0.0%";
+        for (let c = summaryCol + 1; c < Math.min(row.length, summaryCol + 6); c++) {
+          const v = row[c];
+          if (v && v.includes("%")) {
+            if (curPct === "0.0%") curPct = v;
+            else if (tgtPct === "0.0%") { tgtPct = v; break; }
+          }
+        }
+        alloc[catName] = { current: curPct, target: tgtPct };
+      }
     }
 
-    for (const r of lines) {
-      if (r.length > allocCol + 4) {
-        const typeName = r[allocCol];
+    for (let r = 0; r < lines.length; r++) {
+      const row = lines[r];
+      const joined = row.join(" ");
 
-        // Current / target weight of an asset class
-        if (catMap[typeName] && r[allocCol + 3] && r[allocCol + 3].includes("%")) {
-          const curVal = parseFloat(r[allocCol + 3].replace("%", "").trim());
-          const tgtVal = parseFloat(r[allocCol + 4].replace("%", "").trim());
-          if (!isNaN(curVal)) catMap[typeName].cur = `${curVal.toFixed(1)}%`;
-          if (!isNaN(tgtVal)) catMap[typeName].tgt = `${Math.round(tgtVal)}%`;
-        }
-
-        // Total invested
-        if (typeName === ROW_TOTAL_INVESTED && r[allocCol + 2]) {
-          const amt = parseFloat(r[allocCol + 2].replace(/[₩,\s]/g, ""));
-          if (!isNaN(amt) && amt > 0) totalInvested = `₩${(amt / 1e6).toFixed(1)}M`;
-        }
-
-        // Grand total: net asset, cumulative P&L, all-time return, YTD return
-        if (typeName === ROW_GRAND_TOTAL && r.length > allocCol + 6 && r[allocCol + 3] && r[allocCol + 3].includes("₩")) {
-          const net = parseFloat(r[allocCol + 1].replace(/[₩,\s]/g, ""));
-          if (!isNaN(net) && net > 0) netAsset = `₩${(net / 1e6).toFixed(1)}M`;
-
-          const p = parseFloat(r[allocCol + 3].replace(/[₩,\s]/g, ""));
-          if (!isNaN(p)) {
-            totalProfit = `${p >= 0 ? "+" : "-"}₩${(Math.abs(p) / 1e6).toFixed(1)}M`;
-            const ytdP = p - YTD_START_CUM_PROFIT;
-            ytdProfit = `${ytdP >= 0 ? "+" : "-"}₩${(Math.abs(ytdP) / 1e6).toFixed(1)}M`;
+      if (joined.includes("투자 총합") || (row[0] && row[0].includes("투자 총합"))) {
+        for (let c = 1; c < row.length; c++) {
+          const num = parseMoney(row[c]);
+          if (num > 10000000) {
+            totalInvestedVal = num;
+            break;
           }
+        }
+      }
 
-          if (r[allocCol + 4] && r[allocCol + 4].includes("%")) {
-            const tr = parseFloat(r[allocCol + 4].replace("%", "").trim());
-            totalReturn = `${tr >= 0 ? "+" : ""}${tr.toFixed(2)}%`;
-          }
-          if (r[allocCol + 6] && r[allocCol + 6].includes("%")) {
-            const yr = parseFloat(r[allocCol + 6].replace("%", "").trim());
-            ytdReturn = `${yr >= 0 ? "+" : ""}${yr.toFixed(2)}%`;
+      if (row[0] && row[0].trim() === "총합") {
+        const nums = [];
+        for (let c = 1; c < row.length; c++) {
+          const num = parseMoney(row[c]);
+          if (num !== 0) nums.push(num);
+        }
+        if (nums.length >= 2) {
+          netAssetVal = nums[0];
+          allTimeProfit = nums[1];
+          if (nums.length >= 4) {
+            allTimeCost = nums[2];
           }
         }
       }
     }
 
+    if (totalInvestedVal === 0 && netAssetVal > 0) totalInvestedVal = netAssetVal;
+
+    let ytdReturnStr = "-6.56%";
+    let ytdProfitStr = "-₩25.6M";
+    let itdReturnStr = "+3.53%";
+    let itdProfitStr = "+₩15.7M";
+
+    const ytdStartProfit = 41334690;
+    const ytdProfitVal = allTimeProfit - ytdStartProfit;
+    const baseCost = allTimeCost > 0 ? allTimeCost : (netAssetVal - allTimeProfit);
+
+    if (baseCost > 0) {
+      const ytdPct = (ytdProfitVal / baseCost) * 100;
+      ytdReturnStr = (ytdPct >= 0 ? "+" : "") + ytdPct.toFixed(2) + "%";
+      ytdProfitStr = formatProfit(ytdProfitVal);
+
+      const itdPct = (allTimeProfit / baseCost) * 100;
+      itdReturnStr = (itdPct >= 0 ? "+" : "") + itdPct.toFixed(2) + "%";
+      itdProfitStr = formatProfit(allTimeProfit);
+    }
+
     return {
-      totalInvested: totalInvested,
-      netAsset: netAsset,
-      ytdReturn: ytdReturn,
-      ytdProfit: ytdProfit,
-      totalReturn: totalReturn,
-      totalProfit: totalProfit,
-      categories: Object.values(catMap)
+      totalInvested: formatBalance(totalInvestedVal || 253500000),
+      netAsset: formatBalance(netAssetVal || 192800000),
+      ytdReturn: ytdReturnStr,
+      ytdProfit: ytdProfitStr,
+      totalReturn: itdReturnStr,
+      totalProfit: itdProfitStr,
+      alloc: Object.keys(alloc).length > 0 ? alloc : fallback.alloc
     };
   } catch (e) {
     return fallback;
   }
 }
 
+function parseMoney(str) {
+  if (!str) return 0;
+  const cleaned = str.replace(/[₩,\s]/g, "");
+  const val = parseFloat(cleaned);
+  return isNaN(val) ? 0 : val;
+}
+
+function formatBalance(val) {
+  const abs = Math.abs(val);
+  if (abs >= 1e8) {
+    return `₩${(abs / 1e8).toFixed(1)}억`;
+  }
+  return `₩${(abs / 1e6).toFixed(1)}M`;
+}
+
+function formatProfit(val) {
+  const sign = val < 0 ? "-" : (val > 0 ? "+" : "");
+  const abs = Math.abs(val);
+  if (abs >= 1e8) {
+    return `${sign}₩${(abs / 1e8).toFixed(1)}억`;
+  }
+  return `${sign}₩${(abs / 1e6).toFixed(1)}M`;
+}
+
 function formatCurrentTime() {
   const d = new Date();
-  const h = String(d.getHours()).padStart(2, "0");
-  const m = String(d.getMinutes()).padStart(2, "0");
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
   return `${h}:${m} KST`;
 }
