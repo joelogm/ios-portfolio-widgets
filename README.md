@@ -10,18 +10,13 @@ that CSV on every refresh, and any edit shows up on the home screen within secon
 | --- | --- | --- | --- |
 | 01 | [Asset allocation](widgets/01-asset-allocation/README.md) | Total invested, net asset, YTD and all-time performance; current vs. target weight for each asset class | [`widgets/01-asset-allocation/widget.js`](widgets/01-asset-allocation/widget.js) |
 
-```
-┌──────────────────────────────────────────┐
-│ ▲ PORTFOLIO              13:16 KST  ↻ 갱신 │
-│                                          │
-│ 총 투자 자산          유형       현재  목표 │
-│ ₩120.0M              • 미국주식  52.0%  50% │
-│ 순자산 ₩100.0M        • 세계주식  18.0%  20% │
-│                      • 암호화폐  20.0%  20% │
-│ YTD +4.20% · +₩4.8M  • 금        10.0%  10% │
-│ ITD +12.50% · +₩13.3M                     │
-└──────────────────────────────────────────┘
-```
+A medium widget, one glance:
+
+- **header** — `▲ PORTFOLIO`, the time of the last render, and a `↻` refresh button,
+- **left** — `총 투자 자산` in large type, `순자산`, then `YTD` and `ITD` with both a percentage and
+  an amount (losses in blue, gains in red),
+- **right** — one row per asset class with its current and target weight, so a drift from the plan
+  is visible without opening anything.
 
 ## Layout
 
