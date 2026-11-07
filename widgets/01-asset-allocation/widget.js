@@ -12,17 +12,27 @@
  */
 
 // ---------------------------------------------------------------------------
-// Configuration
+// Configuration (injected via CONFIG if called from loader, or defaults)
 // ---------------------------------------------------------------------------
 
 // 1. Published CSV link of the sheet.
-const SHEET_CSV_URL = "YOUR_PUBLISHED_CSV_URL_HERE";
+const SHEET_CSV_URL = (typeof CONFIG !== "undefined" && CONFIG.sheetCsvUrl) 
+  ? CONFIG.sheetCsvUrl 
+  : "YOUR_PUBLISHED_CSV_URL_HERE";
 
 // Widget header title
-const WIDGET_TITLE = "ASSET ALLOCATION";
+const WIDGET_TITLE = (typeof CONFIG !== "undefined" && CONFIG.title) 
+  ? CONFIG.title 
+  : "ASSET ALLOCATION";
 
 // 2. Spreadsheet opened when the widget is tapped.
-const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit";
+const SHEET_EDIT_URL = (typeof CONFIG !== "undefined" && CONFIG.sheetEditUrl) 
+  ? CONFIG.sheetEditUrl 
+  : "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit";
+
+const SCRIPT_NAME = (typeof CONFIG !== "undefined" && CONFIG.scriptName) 
+  ? CONFIG.scriptName 
+  : "dohn_asset";
 
 // 3. Row labels of the summary table in the sheet.
 const ROW_TOTAL_INVESTED = "투자 총합";
@@ -77,7 +87,7 @@ async function createWidget() {
   refreshBtn.cornerRadius = 4;
   refreshBtn.setPadding(2, 6, 2, 6);
 
-  const scriptName = Script.name() || "portfolio_widget";
+  const scriptName = SCRIPT_NAME || (typeof Script !== "undefined" && Script.name()) || "dohn_asset";
   refreshBtn.url = "scriptable:///run?scriptName=" + encodeURIComponent(scriptName);
 
   const refreshText = refreshBtn.addText("↻ 갱신");

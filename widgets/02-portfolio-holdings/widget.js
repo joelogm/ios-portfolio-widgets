@@ -13,21 +13,32 @@
  */
 
 // ---------------------------------------------------------------------------
-// Configuration
+// Configuration (injected via CONFIG if called from loader, or defaults)
 // ---------------------------------------------------------------------------
 
 // Number of holdings to display (Default: 25)
-const TOP_COUNT = 25;
+const TOP_COUNT = (typeof CONFIG !== "undefined" && CONFIG.topCount) 
+  ? CONFIG.topCount 
+  : 25;
 
 // 1. Published CSV URL of '포트폴리오 표' tab
-//    Google Sheets ▸ File ▸ Share ▸ Publish to web ▸ '포트폴리오 표' ▸ CSV
-const SHEET_CSV_URL = "YOUR_PUBLISHED_HOLDINGS_CSV_URL_HERE";
+const SHEET_CSV_URL = (typeof CONFIG !== "undefined" && CONFIG.sheetCsvUrl) 
+  ? CONFIG.sheetCsvUrl 
+  : "YOUR_PUBLISHED_HOLDINGS_CSV_URL_HERE";
 
 // 2. Spreadsheet opened when the widget is tapped
-const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=YOUR_TAB_GID";
+const SHEET_EDIT_URL = (typeof CONFIG !== "undefined" && CONFIG.sheetEditUrl) 
+  ? CONFIG.sheetEditUrl 
+  : "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=YOUR_TAB_GID";
+
+const SCRIPT_NAME = (typeof CONFIG !== "undefined" && CONFIG.scriptName) 
+  ? CONFIG.scriptName 
+  : "dohn_portfolio";
 
 // Accent theme color (Emerald Green)
-const THEME_COLOR = "#30D158";
+const THEME_COLOR = (typeof CONFIG !== "undefined" && CONFIG.themeColor) 
+  ? CONFIG.themeColor 
+  : "#30D158";
 
 const widget = await createWidget();
 Script.setWidget(widget);
@@ -88,7 +99,7 @@ async function createWidget() {
   refreshBtn.cornerRadius = 4;
   refreshBtn.setPadding(2, 6, 2, 6);
 
-  const scriptName = Script.name() || "holdings widget";
+  const scriptName = SCRIPT_NAME || (typeof Script !== "undefined" && Script.name()) || "dohn_portfolio";
   refreshBtn.url = "scriptable:///run?scriptName=" + encodeURIComponent(scriptName);
 
   const refreshTxt = refreshBtn.addText("↻ 갱신");
