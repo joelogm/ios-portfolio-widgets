@@ -6,7 +6,8 @@
  * 100% Dynamic Portfolio Holdings Visualization Widget for iOS Scriptable (Large 4x4)
  * - Dynamically parses '세부종목' (Holding Name) and '비중(평가금액의 SUM)' (Weight %) from Google Sheets CSV.
  * - 0% Hardcoding: Automatically recalculates rankings, percentages, and progress bars as sheet rows change.
- * - Top multi-segment gauge + individual horizontal progress bars + one-tap refresh button.
+ * - Precision grid alignment: All progress bars start at the exact same vertical X-axis.
+ * - Header refresh button (↻) and tap to open Google Sheet.
  */
 
 // ---------------------------------------------------------------------------
@@ -85,18 +86,9 @@ async function createWidget() {
   refreshTxt.font = Font.boldSystemFont(8);
   refreshTxt.textColor = new Color("#FFFFFF");
 
-  w.addSpacer(10);
+  w.addSpacer(14);
 
-  // 3. Top Multi-Segment Proportion Bar
-  if (topItems.length > 0) {
-    const segmentBar = drawSegmentBar(topItems, 300, 6);
-    const segmentImg = w.addImage(segmentBar);
-    segmentImg.imageSize = new Size(300, 6);
-  }
-
-  w.addSpacer(10);
-
-  // 4. Holdings List (Dynamic)
+  // 3. Holdings List (Precision Grid Alignment)
   if (topItems.length === 0) {
     const emptyRow = w.addStack();
     emptyRow.addSpacer();
@@ -112,53 +104,64 @@ async function createWidget() {
 
       const row = w.addStack();
       row.layoutHorizontally();
+      row.centerAlignContent();
 
-      // Rank (#1, #2)
-      const rankTxt = row.addText(`#${rank}`);
+      // ① Rank (#1, #2) - Fixed width 18px
+      const rankStack = row.addStack();
+      rankStack.size = new Size(18, 0);
+      const rankTxt = rankStack.addText(`#${rank}`);
       rankTxt.font = Font.boldSystemFont(9);
       rankTxt.textColor = new Color("#636366");
 
-      row.addSpacer(5);
-
-      // Color Dot
-      const dotTxt = row.addText("• ");
+      // ② Color Dot - Fixed width 12px
+      const dotStack = row.addStack();
+      dotStack.size = new Size(12, 0);
+      const dotTxt = dotStack.addText("•");
       dotTxt.font = Font.boldSystemFont(11);
       dotTxt.textColor = new Color(itemColor);
 
-      // Name
-      const nameTxt = row.addText(item.name);
+      // ③ Name - Fixed width 82px (ensures all progress bars start at exact same X position)
+      const nameStack = row.addStack();
+      nameStack.size = new Size(82, 0);
+      const nameTxt = nameStack.addText(item.name);
       nameTxt.font = Font.boldSystemFont(10);
       nameTxt.textColor = new Color("#FFFFFF");
-
-      row.addSpacer();
-
-      // Dynamic Progress Bar (80px width)
-      const progressBar = drawProgressBar(item.pct, maxPct, itemColor, 80, 5);
-      const barImg = row.addImage(progressBar);
-      barImg.imageSize = new Size(80, 5);
+      nameTxt.lineLimit = 1;
 
       row.addSpacer(8);
 
-      // Percentage
-      const pctTxt = row.addText(`${item.pct.toFixed(1)}%`);
+      // ④ Progress Bar (Exact vertical alignment across all rows) - Fixed width 75px
+      const barStack = row.addStack();
+      barStack.size = new Size(75, 6);
+      const progressBar = drawProgressBar(item.pct, maxPct, itemColor, 75, 6);
+      const barImg = barStack.addImage(progressBar);
+      barImg.imageSize = new Size(75, 6);
+
+      row.addSpacer(8);
+
+      // ⑤ Percentage (%) - Fixed width 42px right-aligned
+      const pctStack = row.addStack();
+      pctStack.size = new Size(42, 0);
+      pctStack.addSpacer();
+      const pctTxt = pctStack.addText(`${item.pct.toFixed(1)}%`);
       pctTxt.font = Font.boldSystemFont(10);
       pctTxt.textColor = new Color("#FFFFFF");
 
-      // Amount if available
-      if (item.amt && item.amt > 0) {
-        row.addSpacer(6);
-        const amtTxt = row.addText(formatAmount(item.amt));
-        amtTxt.font = Font.systemFont(9);
-        amtTxt.textColor = new Color("#8E8E93");
-      }
+      // ⑥ Amount - Fixed width 52px right-aligned
+      const amtStack = row.addStack();
+      amtStack.size = new Size(52, 0);
+      amtStack.addSpacer();
+      const amtTxt = amtStack.addText(formatAmount(item.amt));
+      amtTxt.font = Font.systemFont(9);
+      amtTxt.textColor = new Color("#8E8E93");
 
-      w.addSpacer(4);
+      w.addSpacer(5);
     }
   }
 
-  w.addSpacer(6);
+  w.addSpacer(8);
 
-  // 5. Footer
+  // 4. Footer
   const footerRow = w.addStack();
   footerRow.layoutHorizontally();
 
@@ -196,39 +199,6 @@ function drawProgressBar(pct, maxPct, colorHex, width, height) {
   ctx.addPath(fillPath);
   ctx.setFillColor(new Color(colorHex));
   ctx.fillPath();
-
-  return ctx.getImage();
-}
-
-/**
- * Draw segmented horizontal bar
- */
-function drawSegmentBar(items, width, height) {
-  const ctx = new DrawContext();
-  ctx.size = new Size(width, height);
-  ctx.opaque = false;
-  ctx.respectScreenScale = true;
-
-  const bgPath = new Path();
-  bgPath.addRoundedRect(new Rect(0, 0, width, height), height / 2, height / 2);
-  ctx.addPath(bgPath);
-  ctx.setFillColor(new Color("#25262B"));
-  ctx.fillPath();
-
-  let currentX = 0;
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    const itemW = (item.pct / 100.0) * width;
-    if (itemW <= 0) continue;
-
-    const segPath = new Path();
-    segPath.addRect(new Rect(currentX, 0, itemW, height));
-    ctx.addPath(segPath);
-    ctx.setFillColor(new Color(getItemColor(item.name, i)));
-    ctx.fillPath();
-
-    currentX += itemW;
-  }
 
   return ctx.getImage();
 }
@@ -325,10 +295,10 @@ async function fetchDynamicHoldings() {
 
     for (let c = 0; c < header.length; c++) {
       const h = header[c];
-      if (h.includes("세부종목") || h.includes("종목")) {
+      if (h.includes("세부종목")) {
         nameCol = c;
       }
-      if (h.includes("평가") || h.includes("비중") || h.includes("SUM")) {
+      if ((h.includes("평가") || h.includes("비중") || h.includes("SUM")) && c < 4) {
         if (lines.length > 1 && lines[1][c] && lines[1][c].includes("%")) {
           pctCol = c;
         } else if (lines.length > 1 && lines[1][c] && lines[1][c].includes("₩")) {
