@@ -5,9 +5,10 @@
 /**
  * 100% Dynamic Portfolio Holdings Visualization Widget for iOS Scriptable (Large 4x4)
  * - Dynamically parses '세부종목' (Holding Name) and '비중(평가금액의 SUM)' (Weight %) from Google Sheets CSV.
+ * - 0% Hardcoding: Zero fallback dummy lists. Uses local cache (FileManager) on network failures.
  * - Supports up to 25 holdings (currently all 22 active portfolio holdings on one screen).
  * - Ultra-dense micro-grid layout: 100% precision vertical alignment.
- * - 0% Hardcoding: Unified Apple Emerald Green (#30D158) theme.
+ * - Unified Apple Emerald Green (#30D158) theme.
  * - Header refresh button (↻) and tap to open Google Sheet.
  */
 
@@ -40,7 +41,7 @@ async function createWidget() {
   w.backgroundColor = new Color("#16171a");
   w.setPadding(8, 16, 6, 16);
 
-  // 1. Load holdings dynamically
+  // 1. Load holdings dynamically (0% hardcoding)
   const data = await fetchDynamicHoldings();
   const allItems = data.items;
   const topItems = allItems.slice(0, TOP_COUNT);
@@ -103,7 +104,7 @@ async function createWidget() {
   if (topItems.length === 0) {
     const emptyRow = w.addStack();
     emptyRow.addSpacer();
-    const emptyTxt = emptyRow.addText("구글 시트 CSV 링크를 연결해 주세요");
+    const emptyTxt = emptyRow.addText("시트 데이터를 불러오는 중입니다...");
     emptyTxt.font = Font.systemFont(9);
     emptyTxt.textColor = new Color("#8E8E93");
     emptyRow.addSpacer();
@@ -240,38 +241,19 @@ function formatAmount(val) {
 }
 
 /**
- * Fetch and parse CSV completely dynamically
+ * Fetch and parse CSV completely dynamically with offline caching
  */
 async function fetchDynamicHoldings() {
-  const fallback = {
-    items: [
-      { name: "Kodex 200",   pct: 17.61, amt: 39502500 },
-      { name: "Time 나스닥",  pct: 15.03, amt: 33716030 },
-      { name: "Koact 나스닥", pct: 14.55, amt: 32646750 },
-      { name: "비트코인",     pct: 13.87, amt: 31123500 },
-      { name: "GOOGL",        pct: 8.67,  amt: 19462115 },
-      { name: "금현물",       pct: 7.87,  amt: 17669000 },
-      { name: "보증금",       pct: 7.13,  amt: 16000000 },
-      { name: "이더리움",     pct: 6.83,  amt: 15335000 },
-      { name: "Time 글로벌AI", pct: 5.96, amt: 13365000 },
-      { name: "배당다우",     pct: 5.55,  amt: 12444000 },
-      { name: "청약저축",     pct: 4.46,  amt: 10000000 },
-      { name: "GLDM",         pct: 3.44,  amt: 7720000 },
-      { name: "TQQQ",         pct: 3.20,  amt: 7180000 },
-      { name: "SOXL",         pct: 2.82,  amt: 6330000 },
-      { name: "DRAM",         pct: 2.40,  amt: 5380000 },
-      { name: "솔라나",       pct: 1.92,  amt: 4319000 },
-      { name: "초단기채권",    pct: 1.76,  amt: 3942000 },
-      { name: "Time 차이나AI", pct: 1.56, amt: 3492720 },
-      { name: "Kodex 차이나AI", pct: 1.42, amt: 3176640 },
-      { name: "CONL",         pct: 0.34,  amt: 752790 },
-      { name: "현금(원)",      pct: 0.18,  amt: 408802 },
-      { name: "현금(달러)",    pct: 0.11,  amt: 253530 }
-    ]
-  };
+  const fm = FileManager.local();
+  const cachePath = fm.joinPath(fm.cacheDirectory(), "holdings_widget_cache.json");
 
   if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("YOUR_PUBLISHED_HOLDINGS_CSV_URL_HERE")) {
-    return fallback;
+    if (fm.fileExists(cachePath)) {
+      try {
+        return JSON.parse(fm.readString(cachePath));
+      } catch (e) {}
+    }
+    return { items: [] };
   }
 
   try {
@@ -285,80 +267,91 @@ async function fetchDynamicHoldings() {
     };
 
     const csv = await req.loadString();
-    if (!csv || csv.includes("Unauthorized") || csv.includes("<!DOCTYPE html>")) {
-      return fallback;
-    }
+    if (csv && !csv.includes("Unauthorized") && !csv.includes("<!DOCTYPE html>")) {
+      const lines = csv.split(/\r?\n/).map(line => {
+        const row = [];
+        let inQuotes = false, cur = "";
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { inQuotes = !inQuotes; }
+          else if (c === ',' && !inQuotes) { row.push(cur.trim()); cur = ""; }
+          else { cur += c; }
+        }
+        row.push(cur.trim());
+        return row;
+      });
 
-    // CSV 라인 분해 (따옴표 내 쉼표 보존)
-    const lines = csv.split(/\r?\n/).map(line => {
-      const row = [];
-      let inQuotes = false, cur = "";
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (c === '"') { inQuotes = !inQuotes; }
-        else if (c === ',' && !inQuotes) { row.push(cur.trim()); cur = ""; }
-        else { cur += c; }
-      }
-      row.push(cur.trim());
-      return row;
-    });
+      if (lines.length >= 2) {
+        const header = lines[0];
+        let nameCol = 0;
+        let pctCol = 1;
+        let amtCol = 2;
 
-    if (lines.length < 2) return fallback;
+        for (let c = 0; c < header.length; c++) {
+          const h = header[c];
+          if (h.includes("세부종목")) {
+            nameCol = c;
+          }
+          if ((h.includes("평가") || h.includes("비중") || h.includes("SUM")) && c < 4) {
+            if (lines.length > 1 && lines[1][c] && lines[1][c].includes("%")) {
+              pctCol = c;
+            } else if (lines.length > 1 && lines[1][c] && lines[1][c].includes("₩")) {
+              amtCol = c;
+            }
+          }
+        }
 
-    const header = lines[0];
-    let nameCol = 0;
-    let pctCol = 1;
-    let amtCol = 2;
+        const parsed = [];
+        for (let i = 1; i < lines.length; i++) {
+          const r = lines[i];
+          if (r.length <= Math.max(nameCol, pctCol)) continue;
 
-    for (let c = 0; c < header.length; c++) {
-      const h = header[c];
-      if (h.includes("세부종목")) {
-        nameCol = c;
-      }
-      if ((h.includes("평가") || h.includes("비중") || h.includes("SUM")) && c < 4) {
-        if (lines.length > 1 && lines[1][c] && lines[1][c].includes("%")) {
-          pctCol = c;
-        } else if (lines.length > 1 && lines[1][c] && lines[1][c].includes("₩")) {
-          amtCol = c;
+          const name = r[nameCol].trim();
+          if (!name || name === "총계" || name === "합계" || name === "부채") continue;
+
+          const pctStr = r[pctCol].replace("%", "").trim();
+          const pctVal = parseFloat(pctStr);
+
+          if (!isNaN(pctVal) && pctVal > 0) {
+            let amtVal = 0;
+            if (r.length > amtCol && r[amtCol]) {
+              amtVal = parseFloat(r[amtCol].replace(/[₩,\s]/g, ""));
+              if (isNaN(amtVal)) amtVal = 0;
+            }
+
+            parsed.push({
+              name: name,
+              pct: pctVal,
+              amt: amtVal
+            });
+          }
+        }
+
+        if (parsed.length > 0) {
+          parsed.sort((a, b) => b.pct - a.pct);
+          const result = { items: parsed };
+
+          try {
+            fm.writeString(cachePath, JSON.stringify(result));
+          } catch (e) {}
+
+          return result;
         }
       }
     }
+  } catch (e) {}
 
-    const parsed = [];
-    for (let i = 1; i < lines.length; i++) {
-      const r = lines[i];
-      if (r.length <= Math.max(nameCol, pctCol)) continue;
-
-      const name = r[nameCol].trim();
-      if (!name || name === "총계" || name === "합계" || name === "부채") continue;
-
-      const pctStr = r[pctCol].replace("%", "").trim();
-      const pctVal = parseFloat(pctStr);
-
-      if (!isNaN(pctVal) && pctVal > 0) {
-        let amtVal = 0;
-        if (r.length > amtCol && r[amtCol]) {
-          amtVal = parseFloat(r[amtCol].replace(/[₩,\s]/g, ""));
-          if (isNaN(amtVal)) amtVal = 0;
-        }
-
-        parsed.push({
-          name: name,
-          pct: pctVal,
-          amt: amtVal
-        });
+  if (fm.fileExists(cachePath)) {
+    try {
+      const cachedStr = fm.readString(cachePath);
+      const cachedJson = JSON.parse(cachedStr);
+      if (cachedJson && cachedJson.items && cachedJson.items.length > 0) {
+        return cachedJson;
       }
-    }
-
-    if (parsed.length > 0) {
-      parsed.sort((a, b) => b.pct - a.pct);
-      return { items: parsed };
-    }
-
-    return fallback;
-  } catch (e) {
-    return fallback;
+    } catch (e) {}
   }
+
+  return { items: [] };
 }
 
 function formatCurrentTime() {
