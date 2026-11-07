@@ -217,17 +217,17 @@ async function createWidget() {
 async function fetchSheetData() {
   const fallback = {
     totalInvested: "₩253.5M",
-    netAsset: "₩192.8M",
+    netAsset: "₩224.3M",
     debt: "59.8M",
     ytdReturn: "-6.56%",
     ytdProfit: "-₩25.6M",
     totalReturn: "+3.53%",
     totalProfit: "+₩15.7M",
     alloc: {
-      "미국주식": { current: "55.8%", target: "49.3%" },
-      "세계주식": { current: "23.0%", target: "20.3%" },
-      "암호화폐": { current: "23.0%", target: "20.3%" },
-      "금":       { current: "11.3%", target: "10.0%" }
+      "미국주식": { current: "49.4%", target: "50.0%" },
+      "세계주식": { current: "20.3%", target: "20.0%" },
+      "암호화폐": { current: "20.3%", target: "20.0%" },
+      "금":       { current: "10.0%", target: "10.0%" }
     }
   };
 
@@ -265,11 +265,50 @@ async function fetchSheetData() {
 
     let totalInvestedVal = 0;
     let netAssetVal = 0;
-    let debtVal = 59800000;
-    let allTimeProfit = 0;
-    let allTimeCost = 0;
+    let debtVal = 0;
+    let ytdReturnStr = "";
+    let ytdProfitStr = "";
+    let itdReturnStr = "";
+    let itdProfitStr = "";
     const alloc = {};
 
+    // 1. Time-series performance table (headers: 순자산, YTD 수익률, YTD 수익, 수익률, 수익)
+    for (let r = 0; r < lines.length; r++) {
+      const row = lines[r];
+      let netCol = -1, ytdRetCol = -1, ytdProfCol = -1, itdRetCol = -1, itdProfCol = -1;
+
+      for (let c = 0; c < row.length; c++) {
+        const h = row[c].trim();
+        if (h === "순자산") netCol = c;
+        else if (h === "YTD 수익률") ytdRetCol = c;
+        else if (h === "YTD 수익") ytdProfCol = c;
+        else if (h === "수익률") itdRetCol = c;
+        else if (h === "수익") itdProfCol = c;
+      }
+
+      if (netCol !== -1 && r + 1 < lines.length) {
+        const nextRow = lines[r + 1];
+        const candNet = parseMoney(nextRow[netCol]);
+        if (candNet > 10000000) {
+          netAssetVal = candNet;
+          if (ytdRetCol !== -1 && nextRow[ytdRetCol]) {
+            ytdReturnStr = formatPct(nextRow[ytdRetCol]);
+          }
+          if (ytdProfCol !== -1 && nextRow[ytdProfCol]) {
+            ytdProfitStr = formatAmountM(parseMoney(nextRow[ytdProfCol]), true);
+          }
+          if (itdRetCol !== -1 && nextRow[itdRetCol]) {
+            itdReturnStr = formatPct(nextRow[itdRetCol]);
+          }
+          if (itdProfCol !== -1 && nextRow[itdProfCol]) {
+            itdProfitStr = formatAmountM(parseMoney(nextRow[itdProfCol]), true);
+          }
+          break;
+        }
+      }
+    }
+
+    // 2. 4 Core Asset Allocation (미국주식, 세계주식, 암호화폐, 금)
     let summaryCol = -1;
     let investWeightCol = -1;
     let targetWeightCol = -1;
@@ -282,12 +321,8 @@ async function fetchSheetData() {
           summaryCol = c;
           for (let k = c; k < Math.min(headerRow.length, c + 8); k++) {
             const h = headerRow[k].trim();
-            if (h.includes("투자") && h.includes("비중")) {
-              investWeightCol = k;
-            }
-            if (h.includes("목표") && h.includes("비중")) {
-              targetWeightCol = k;
-            }
+            if (h.includes("투자") && h.includes("비중")) investWeightCol = k;
+            if (h.includes("목표") && h.includes("비중")) targetWeightCol = k;
           }
           break;
         }
@@ -302,87 +337,50 @@ async function fetchSheetData() {
     for (let r = 0; r < lines.length; r++) {
       const row = lines[r];
       if (row.length <= summaryCol) continue;
-
       const catName = row[summaryCol].trim();
       if (["미국주식", "세계주식", "암호화폐", "금"].includes(catName)) {
         let curPct = "0.0%";
         let tgtPct = "0.0%";
-
-        if (row.length > investWeightCol && row[investWeightCol]) {
-          curPct = row[investWeightCol].trim();
-        }
-        if (row.length > targetWeightCol && row[targetWeightCol]) {
-          tgtPct = row[targetWeightCol].trim();
-        }
-
+        if (row.length > investWeightCol && row[investWeightCol]) curPct = row[investWeightCol].trim();
+        if (row.length > targetWeightCol && row[targetWeightCol]) tgtPct = row[targetWeightCol].trim();
         alloc[catName] = { current: curPct, target: tgtPct };
       }
     }
 
+    // 3. Scan sheet for totalInvestedVal, debtVal, and netAssetVal fallback
     for (let r = 0; r < lines.length; r++) {
       const row = lines[r];
-      const joined = row.join(" ");
-
-      if (row.length > 6 && row[4] === "부채" && row[6]) {
-        const d = Math.abs(parseMoney(row[6]));
-        if (d > 0) debtVal = d;
-      }
-
-      if (joined.includes("투자 총합") || (row[0] && row[0].includes("투자 총합"))) {
-        for (let c = 1; c < row.length; c++) {
-          const num = parseMoney(row[c]);
-          if (num > 10000000) {
-            totalInvestedVal = num;
-            break;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c].trim();
+        if ((cell === "투자 총합" || cell === "Exposure") && totalInvestedVal === 0) {
+          for (let k = c + 1; k < Math.min(row.length, c + 5); k++) {
+            const m = parseMoney(row[k]);
+            if (m > 10000000) { totalInvestedVal = m; break; }
+          }
+        }
+        if ((cell === "부채" || cell === "Debt") && debtVal === 0) {
+          for (let k = c + 1; k < Math.min(row.length, c + 5); k++) {
+            const m = Math.abs(parseMoney(row[k]));
+            if (m > 1000000) { debtVal = m; break; }
+          }
+        }
+        if ((cell === "Equity" || cell === "총합") && netAssetVal === 0) {
+          for (let k = c + 1; k < Math.min(row.length, c + 5); k++) {
+            const m = parseMoney(row[k]);
+            if (m > 10000000) { netAssetVal = m; break; }
           }
         }
       }
-
-      if (row[0] && row[0].trim() === "총합") {
-        const nums = [];
-        for (let c = 1; c < row.length; c++) {
-          const num = parseMoney(row[c]);
-          if (num !== 0) nums.push(num);
-        }
-        if (nums.length >= 2) {
-          netAssetVal = nums[0];
-          allTimeProfit = nums[1];
-          if (nums.length >= 4) {
-            allTimeCost = nums[2];
-          }
-        }
-      }
-    }
-
-    if (totalInvestedVal === 0 && netAssetVal > 0) totalInvestedVal = netAssetVal;
-
-    let ytdReturnStr = "-6.56%";
-    let ytdProfitStr = "-₩25.6M";
-    let itdReturnStr = "+3.53%";
-    let itdProfitStr = "+₩15.7M";
-
-    const ytdStartProfit = 41334690;
-    const ytdProfitVal = allTimeProfit - ytdStartProfit;
-    const baseCost = allTimeCost > 0 ? allTimeCost : (netAssetVal - allTimeProfit);
-
-    if (baseCost > 0) {
-      const ytdPct = (ytdProfitVal / baseCost) * 100;
-      ytdReturnStr = (ytdPct >= 0 ? "+" : "") + ytdPct.toFixed(2) + "%";
-      ytdProfitStr = `${ytdProfitVal >= 0 ? "+" : "-"}₩${(Math.abs(ytdProfitVal) / 1e6).toFixed(1)}M`;
-
-      const itdPct = (allTimeProfit / baseCost) * 100;
-      itdReturnStr = (itdPct >= 0 ? "+" : "") + itdPct.toFixed(2) + "%";
-      itdProfitStr = `${allTimeProfit >= 0 ? "+" : "-"}₩${(Math.abs(allTimeProfit) / 1e6).toFixed(1)}M`;
     }
 
     return {
-      totalInvested: `₩${((totalInvestedVal || 253500000) / 1e6).toFixed(1)}M`,
-      netAsset: `₩${((netAssetVal || 192800000) / 1e6).toFixed(1)}M`,
-      debt: `${(debtVal / 1e6).toFixed(1)}M`,
-      ytdReturn: ytdReturnStr,
-      ytdProfit: ytdProfitStr,
-      totalReturn: itdReturnStr,
-      totalProfit: itdProfitStr,
+      totalInvested: formatAmountM(totalInvestedVal || 253500000),
+      netAsset: formatAmountM(netAssetVal || 224300000),
+      debt: `${((debtVal || 59800000) / 1e6).toFixed(1)}M`,
+      ytdReturn: ytdReturnStr || "-6.56%",
+      ytdProfit: ytdProfitStr || "-₩25.6M",
+      totalReturn: itdReturnStr || "+3.53%",
+      totalProfit: itdProfitStr || "+₩15.7M",
       alloc: Object.keys(alloc).length > 0 ? alloc : fallback.alloc
     };
   } catch (e) {
@@ -395,6 +393,22 @@ function parseMoney(str) {
   const cleaned = str.replace(/[₩,\s]/g, "");
   const val = parseFloat(cleaned);
   return isNaN(val) ? 0 : val;
+}
+
+function formatAmountM(val, withSign = false) {
+  if (!val && val !== 0) return "";
+  const sign = val > 0 ? "+" : (val < 0 ? "-" : "");
+  const mVal = (Math.abs(val) / 1e6).toFixed(1);
+  return withSign ? `${sign}₩${mVal}M` : `₩${mVal}M`;
+}
+
+function formatPct(str) {
+  if (!str) return "";
+  const cleaned = str.replace(/[%,\s]/g, "");
+  const val = parseFloat(cleaned);
+  if (isNaN(val)) return str.trim();
+  const sign = val > 0 ? "+" : (val < 0 ? "-" : "");
+  return `${sign}${Math.abs(val).toFixed(2)}%`;
 }
 
 function formatCurrentTime() {
