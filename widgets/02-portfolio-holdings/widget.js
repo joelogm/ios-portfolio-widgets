@@ -53,6 +53,7 @@ async function createWidget() {
   // 2. Header
   const headerRow = w.addStack();
   headerRow.layoutHorizontally();
+  headerRow.centerAlignContent();
 
   const titleCol = headerRow.addStack();
   titleCol.layoutVertically();
@@ -71,31 +72,27 @@ async function createWidget() {
 
   headerRow.addSpacer();
 
-  // Right Header: Time & Refresh Button
-  const rightCol = headerRow.addStack();
-  rightCol.layoutVertically();
+  // Right Header: Time & Refresh Button in a single horizontal row
+  const rightRow = headerRow.addStack();
+  rightRow.layoutHorizontally();
+  rightRow.centerAlignContent();
 
-  const timeRow = rightCol.addStack();
-  timeRow.addSpacer();
-  const timeTxt = timeRow.addText(formatCurrentTime());
-  timeTxt.font = Font.systemFont(7.5);
+  const timeTxt = rightRow.addText(formatCurrentTime());
+  timeTxt.font = Font.systemFont(8.5);
   timeTxt.textColor = new Color("#8E8E93");
 
-  rightCol.addSpacer(2);
+  rightRow.addSpacer(6);
 
-  const btnRow = rightCol.addStack();
-  btnRow.addSpacer();
-
-  const refreshBtn = btnRow.addStack();
+  const refreshBtn = rightRow.addStack();
   refreshBtn.backgroundColor = new Color("#25262B");
   refreshBtn.cornerRadius = 4;
-  refreshBtn.setPadding(1.5, 5, 1.5, 5);
+  refreshBtn.setPadding(2, 6, 2, 6);
 
   const scriptName = Script.name() || "holdings widget";
   refreshBtn.url = "scriptable:///run?scriptName=" + encodeURIComponent(scriptName);
 
   const refreshTxt = refreshBtn.addText("↻ 갱신");
-  refreshTxt.font = Font.boldSystemFont(7.5);
+  refreshTxt.font = Font.boldSystemFont(8);
   refreshTxt.textColor = new Color("#FFFFFF");
 
   w.addSpacer(4);
