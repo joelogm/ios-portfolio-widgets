@@ -22,6 +22,9 @@
 //    Google Sheets ▸ File ▸ Share ▸ Publish to web ▸ pick the tab ▸ CSV
 const SHEET_CSV_URL = "YOUR_PUBLISHED_CSV_URL_HERE";
 
+// Widget header title (e.g. "ASSET ALLOCATION", "ASSETS", "ASSET MONITOR")
+const WIDGET_TITLE = "ASSET ALLOCATION";
+
 // 2. Spreadsheet opened when the widget is tapped.
 //    Keep the id part (the long string between /d/ and /edit) of your sheet URL.
 const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit";
@@ -66,7 +69,7 @@ async function createWidget() {
   const headerRow = w.addStack();
   headerRow.layoutHorizontally();
 
-  const titleText = headerRow.addText("▲ PORTFOLIO");
+  const titleText = headerRow.addText(`▲ ${WIDGET_TITLE}`);
   titleText.font = Font.boldSystemFont(10);
   titleText.textColor = new Color("#FF5555");
 
@@ -119,47 +122,79 @@ async function createWidget() {
 
   leftCol.addSpacer(5);
 
-  // 1. YTD
+  // 1. YTD (Tag and percentage fixed width for pixel-perfect vertical alignment)
   const ytdRow = leftCol.addStack();
   ytdRow.layoutHorizontally();
+  ytdRow.centerAlignContent();
 
-  const ytdTag = ytdRow.addText("YTD ");
-  ytdTag.font = Font.boldSystemFont(9);
+  const ytdTagStack = ytdRow.addStack();
+  ytdTagStack.size = new Size(22, 0);
+  ytdTagStack.layoutHorizontally();
+  const ytdTag = ytdTagStack.addText("YTD");
+  ytdTag.font = Font.boldSystemFont(8.5);
   ytdTag.textColor = new Color("#8E8E93");
+  ytdTag.lineLimit = 1;
+  ytdTagStack.addSpacer();
 
-  const ytdPct = ytdRow.addText(d.ytdReturn);
-  ytdPct.font = Font.boldSystemFont(9);
+  ytdRow.addSpacer(4);
+
+  const ytdPctStack = ytdRow.addStack();
+  ytdPctStack.size = new Size(39, 0);
+  ytdPctStack.layoutHorizontally();
+  const ytdPct = ytdPctStack.addText(d.ytdReturn);
+  ytdPct.font = Font.boldSystemFont(8.5);
   ytdPct.textColor = d.ytdReturn.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
+  ytdPct.lineLimit = 1;
+  ytdPctStack.addSpacer();
 
-  const ytdDot = ytdRow.addText(" · ");
-  ytdDot.font = Font.systemFont(9);
+  ytdRow.addSpacer(3);
+
+  const ytdDot = ytdRow.addText("· ");
+  ytdDot.font = Font.systemFont(8.5);
   ytdDot.textColor = new Color("#636366");
 
   const ytdAmt = ytdRow.addText(d.ytdProfit);
-  ytdAmt.font = Font.boldSystemFont(9);
+  ytdAmt.font = Font.boldSystemFont(8.5);
   ytdAmt.textColor = d.ytdProfit.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
+  ytdAmt.lineLimit = 1;
 
-  leftCol.addSpacer(2);
+  leftCol.addSpacer(2.5);
 
-  // 2. All-time
+  // 2. All-time (ITD)
   const itdRow = leftCol.addStack();
   itdRow.layoutHorizontally();
+  itdRow.centerAlignContent();
 
-  const itdTag = itdRow.addText("ITD ");
-  itdTag.font = Font.boldSystemFont(9);
+  const itdTagStack = itdRow.addStack();
+  itdTagStack.size = new Size(22, 0);
+  itdTagStack.layoutHorizontally();
+  const itdTag = itdTagStack.addText("ITD");
+  itdTag.font = Font.boldSystemFont(8.5);
   itdTag.textColor = new Color("#8E8E93");
+  itdTag.lineLimit = 1;
+  itdTagStack.addSpacer();
 
-  const itdPct = itdRow.addText(d.totalReturn);
-  itdPct.font = Font.boldSystemFont(9);
+  itdRow.addSpacer(4);
+
+  const itdPctStack = itdRow.addStack();
+  itdPctStack.size = new Size(39, 0);
+  itdPctStack.layoutHorizontally();
+  const itdPct = itdPctStack.addText(d.totalReturn);
+  itdPct.font = Font.boldSystemFont(8.5);
   itdPct.textColor = d.totalReturn.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
+  itdPct.lineLimit = 1;
+  itdPctStack.addSpacer();
 
-  const itdDot = itdRow.addText(" · ");
-  itdDot.font = Font.systemFont(9);
+  itdRow.addSpacer(3);
+
+  const itdDot = itdRow.addText("· ");
+  itdDot.font = Font.systemFont(8.5);
   itdDot.textColor = new Color("#636366");
 
   const itdAmt = itdRow.addText(d.totalProfit);
-  itdAmt.font = Font.boldSystemFont(9);
+  itdAmt.font = Font.boldSystemFont(8.5);
   itdAmt.textColor = d.totalProfit.startsWith("-") ? new Color("#5E9BFF") : new Color("#FF453A");
+  itdAmt.lineLimit = 1;
 
   bodyRow.addSpacer(14);
 
