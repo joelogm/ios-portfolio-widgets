@@ -5,7 +5,7 @@
 /**
  * 100% Dynamic Portfolio Holdings Visualization Widget for iOS Scriptable (Large 4x4)
  * - Dynamically parses '세부종목' (Holding Name) and '비중(평가금액의 SUM)' (Weight %) from Google Sheets CSV.
- * - Top 15 Holdings full display with strict left-aligned text (zero centering).
+ * - Top 15 Holdings full display with strict 1-line ranks (no wrapping) and right-aligned metrics.
  * - 0% Hardcoding: Unified Apple Emerald Green (#30D158) theme. No keyword color matching needed.
  * - Precision grid alignment: All progress bars start at the exact same vertical X-axis.
  * - Header refresh button (↻) and tap to open Google Sheet.
@@ -95,7 +95,7 @@ async function createWidget() {
 
   w.addSpacer(6);
 
-  // 3. Holdings List (Strict Left Alignment)
+  // 3. Holdings List (Strict 1-line ranks and right-aligned metrics)
   if (topItems.length === 0) {
     const emptyRow = w.addStack();
     emptyRow.addSpacer();
@@ -112,21 +112,22 @@ async function createWidget() {
       row.layoutHorizontally();
       row.centerAlignContent();
 
-      // ① Rank (#1 ~ #15) - Fixed width 20px (Strict left aligned)
+      // ① Rank (#1 ~ #15) - Fixed width 26px (No wrap, strict 1-line)
       const rankStack = row.addStack();
-      rankStack.size = new Size(20, 0);
+      rankStack.size = new Size(26, 0);
       rankStack.layoutHorizontally();
       const rankTxt = rankStack.addText(`#${rank}`);
       rankTxt.font = Font.boldSystemFont(8);
       rankTxt.textColor = new Color("#636366");
+      rankTxt.lineLimit = 1;
       rankTxt.leftAlignText();
       rankStack.addSpacer();
 
       row.addSpacer(5);
 
-      // ② Name - Fixed width 88px (Strict left aligned!)
+      // ② Name - Fixed width 84px (Strict left aligned & 1-line)
       const nameStack = row.addStack();
-      nameStack.size = new Size(88, 0);
+      nameStack.size = new Size(84, 0);
       nameStack.layoutHorizontally();
       const nameTxt = nameStack.addText(item.name);
       nameTxt.font = Font.boldSystemFont(9);
@@ -135,32 +136,40 @@ async function createWidget() {
       nameTxt.leftAlignText();
       nameStack.addSpacer();
 
-      row.addSpacer(7);
+      row.addSpacer(6);
 
-      // ③ Progress Bar (Emerald Green, Exact vertical alignment) - Fixed width 72px
+      // ③ Progress Bar (Emerald Green, Exact vertical alignment) - Fixed width 68px
       const barStack = row.addStack();
-      barStack.size = new Size(72, 4.5);
-      const progressBar = drawProgressBar(item.pct, maxPct, THEME_COLOR, 72, 4.5);
+      barStack.size = new Size(68, 4.5);
+      const progressBar = drawProgressBar(item.pct, maxPct, THEME_COLOR, 68, 4.5);
       const barImg = barStack.addImage(progressBar);
-      barImg.imageSize = new Size(72, 4.5);
+      barImg.imageSize = new Size(68, 4.5);
 
-      row.addSpacer(7);
+      row.addSpacer(6);
 
-      // ④ Percentage (%) - Fixed width 38px right-aligned
+      // ④ Percentage (%) - Fixed width 40px right-aligned
       const pctStack = row.addStack();
-      pctStack.size = new Size(38, 0);
+      pctStack.size = new Size(40, 0);
+      pctStack.layoutHorizontally();
       pctStack.addSpacer();
       const pctTxt = pctStack.addText(`${item.pct.toFixed(1)}%`);
       pctTxt.font = Font.boldSystemFont(9);
       pctTxt.textColor = new Color("#FFFFFF");
+      pctTxt.lineLimit = 1;
+      pctTxt.rightAlignText();
 
-      // ⑤ Amount - Fixed width 48px right-aligned
+      row.addSpacer(6);
+
+      // ⑤ Amount - Fixed width 50px right-aligned
       const amtStack = row.addStack();
-      amtStack.size = new Size(48, 0);
+      amtStack.size = new Size(50, 0);
+      amtStack.layoutHorizontally();
       amtStack.addSpacer();
       const amtTxt = amtStack.addText(formatAmount(item.amt));
       amtTxt.font = Font.systemFont(8);
       amtTxt.textColor = new Color("#8E8E93");
+      amtTxt.lineLimit = 1;
+      amtTxt.rightAlignText();
 
       if (i < topItems.length - 1) {
         w.addSpacer(2.0);
