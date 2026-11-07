@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Local secrets and config overrides
+.env
+.env.*
+config.local.js
+secrets.json
+
+# Sheet exports — may contain personal data, never commit
+*.csv
+*.xlsx
+
+# Logs
+*.log

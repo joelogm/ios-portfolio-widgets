@@ -1,0 +1,1 @@
+widgets/01-asset-allocation/widget.js
