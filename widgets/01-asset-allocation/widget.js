@@ -261,17 +261,33 @@ async function fetchSheetData() {
     const alloc = {};
 
     let summaryCol = -1;
+    let investWeightCol = -1;
+    let targetWeightCol = -1;
+
     for (let r = 0; r < Math.min(15, lines.length); r++) {
-      for (let c = 5; c < lines[r].length; c++) {
-        const val = lines[r][c];
-        if (val === "유형" && lines[r].length > c + 2) {
+      const headerRow = lines[r];
+      for (let c = 0; c < headerRow.length; c++) {
+        const val = headerRow[c].trim();
+        if (val === "유형" && c > 4) {
           summaryCol = c;
+          for (let k = c; k < Math.min(headerRow.length, c + 8); k++) {
+            const h = headerRow[k].trim();
+            if (h.includes("투자") && h.includes("비중")) {
+              investWeightCol = k;
+            }
+            if (h.includes("목표") && h.includes("비중")) {
+              targetWeightCol = k;
+            }
+          }
           break;
         }
       }
       if (summaryCol !== -1) break;
     }
-    if (summaryCol === -1) summaryCol = 11;
+
+    if (summaryCol === -1) summaryCol = 10;
+    if (investWeightCol === -1) investWeightCol = summaryCol + 3;
+    if (targetWeightCol === -1) targetWeightCol = summaryCol + 4;
 
     for (let r = 0; r < lines.length; r++) {
       const row = lines[r];
@@ -281,13 +297,14 @@ async function fetchSheetData() {
       if (["미국주식", "세계주식", "암호화폐", "금"].includes(catName)) {
         let curPct = "0.0%";
         let tgtPct = "0.0%";
-        for (let c = summaryCol + 1; c < Math.min(row.length, summaryCol + 6); c++) {
-          const v = row[c];
-          if (v && v.includes("%")) {
-            if (curPct === "0.0%") curPct = v;
-            else if (tgtPct === "0.0%") { tgtPct = v; break; }
-          }
+
+        if (row.length > investWeightCol && row[investWeightCol]) {
+          curPct = row[investWeightCol].trim();
         }
+        if (row.length > targetWeightCol && row[targetWeightCol]) {
+          tgtPct = row[targetWeightCol].trim();
+        }
+
         alloc[catName] = { current: curPct, target: tgtPct };
       }
     }
