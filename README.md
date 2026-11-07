@@ -8,7 +8,8 @@ that CSV on every refresh, and any edit shows up on the home screen within secon
 
 | # | Widget | Shows | File |
 | --- | --- | --- | --- |
-| 01 | [Asset allocation](widgets/01-asset-allocation/README.md) | Total invested, net asset, YTD and all-time performance; current vs. target weight for each asset class | [`widgets/01-asset-allocation/widget.js`](widgets/01-asset-allocation/widget.js) |
+| 01 | [Asset allocation](widgets/01-asset-allocation/README.md) | Total invested, net asset, YTD and all-time performance; current vs. target weight for each asset class (Medium 2x4) | [`widgets/01-asset-allocation/widget.js`](widgets/01-asset-allocation/widget.js) |
+| 02 | [Portfolio holdings](widgets/02-portfolio-holdings/README.md) | Top 8 holdings ranking, visual progress bars, top segmented allocation gauge (Large 4x4) | [`widgets/02-portfolio-holdings/widget.js`](widgets/02-portfolio-holdings/widget.js) |
 
 A medium widget, one glance:
 
