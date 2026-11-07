@@ -5,7 +5,7 @@
 /**
  * 100% Dynamic Portfolio Holdings Visualization Widget for iOS Scriptable (Large 4x4)
  * - Dynamically parses '세부종목' (Holding Name) and '비중(평가금액의 SUM)' (Weight %) from Google Sheets CSV.
- * - Top 15 Holdings full display (98.5% portfolio coverage).
+ * - Top 15 Holdings full display with strict left-aligned text (zero centering).
  * - 0% Hardcoding: Unified Apple Emerald Green (#30D158) theme. No keyword color matching needed.
  * - Precision grid alignment: All progress bars start at the exact same vertical X-axis.
  * - Header refresh button (↻) and tap to open Google Sheet.
@@ -45,6 +45,8 @@ async function createWidget() {
   const allItems = data.items;
   const topItems = allItems.slice(0, TOP_COUNT);
   const topSum = topItems.reduce((acc, cur) => acc + cur.pct, 0);
+  const totalAssetPct = allItems.reduce((acc, cur) => acc + cur.pct, 0);
+  const topRatio = totalAssetPct > 0 ? (topSum / totalAssetPct * 100) : 100;
   const maxPct = topItems.length > 0 ? topItems[0].pct : 20.0;
 
   // 2. Header
@@ -58,7 +60,7 @@ async function createWidget() {
   titleTxt.font = Font.boldSystemFont(10.5);
   titleTxt.textColor = new Color(THEME_COLOR);
 
-  const subTxt = titleCol.addText(`Top ${topItems.length} 비중 ${topSum.toFixed(1)}% · 총 ${allItems.length}개 종목`);
+  const subTxt = titleCol.addText(`Top ${topItems.length} 비중 ${topRatio.toFixed(1)}% · 총 ${allItems.length}개 종목`);
   subTxt.font = Font.systemFont(8.5);
   subTxt.textColor = new Color("#8E8E93");
 
@@ -93,7 +95,7 @@ async function createWidget() {
 
   w.addSpacer(6);
 
-  // 3. Holdings List (Top 15 Precision Grid Alignment)
+  // 3. Holdings List (Strict Left Alignment)
   if (topItems.length === 0) {
     const emptyRow = w.addStack();
     emptyRow.addSpacer();
@@ -110,22 +112,28 @@ async function createWidget() {
       row.layoutHorizontally();
       row.centerAlignContent();
 
-      // ① Rank (#1 ~ #15) - Fixed width 22px
+      // ① Rank (#1 ~ #15) - Fixed width 20px (Strict left aligned)
       const rankStack = row.addStack();
-      rankStack.size = new Size(22, 0);
+      rankStack.size = new Size(20, 0);
+      rankStack.layoutHorizontally();
       const rankTxt = rankStack.addText(`#${rank}`);
       rankTxt.font = Font.boldSystemFont(8);
       rankTxt.textColor = new Color("#636366");
+      rankTxt.leftAlignText();
+      rankStack.addSpacer();
 
       row.addSpacer(5);
 
-      // ② Name - Fixed width 88px
+      // ② Name - Fixed width 88px (Strict left aligned!)
       const nameStack = row.addStack();
       nameStack.size = new Size(88, 0);
+      nameStack.layoutHorizontally();
       const nameTxt = nameStack.addText(item.name);
       nameTxt.font = Font.boldSystemFont(9);
       nameTxt.textColor = new Color("#FFFFFF");
       nameTxt.lineLimit = 1;
+      nameTxt.leftAlignText();
+      nameStack.addSpacer();
 
       row.addSpacer(7);
 
@@ -166,9 +174,9 @@ async function createWidget() {
   const footerRow = w.addStack();
   footerRow.layoutHorizontally();
 
-  const othersPct = Math.max(0, 100 - topSum).toFixed(1);
+  const otherRatio = Math.max(0, 100 - topRatio).toFixed(1);
   const otherCount = Math.max(0, allItems.length - topItems.length);
-  const footerTxt = footerRow.addText(`기타 ${otherCount}개 세부종목 (${othersPct}%) · 터치하여 시트 열기`);
+  const footerTxt = footerRow.addText(`기타 ${otherCount}개 세부종목 (${otherRatio}%) · 터치하여 시트 열기`);
   footerTxt.font = Font.systemFont(8);
   footerTxt.textColor = new Color("#636366");
 
@@ -254,6 +262,7 @@ async function fetchDynamicHoldings() {
       return fallback;
     }
 
+    // CSV 라인 분해 (따옴표 내 쉼표 보존)
     const lines = csv.split(/\r?\n/).map(line => {
       const row = [];
       let inQuotes = false, cur = "";
