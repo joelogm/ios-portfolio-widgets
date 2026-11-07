@@ -5,7 +5,7 @@
 /**
  * 100% Dynamic Portfolio Holdings Visualization Widget for iOS Scriptable (Large 4x4)
  * - Dynamically parses '세부종목' (Holding Name) and '비중(평가금액의 SUM)' (Weight %) from Google Sheets CSV.
- * - 0% Hardcoding: Automatically recalculates rankings, percentages, and progress bars as sheet rows change.
+ * - 0% Hardcoding: Unified Apple Emerald Green (#30D158) theme. No keyword color matching needed.
  * - Precision grid alignment: All progress bars start at the exact same vertical X-axis.
  * - Header refresh button (↻) and tap to open Google Sheet.
  */
@@ -20,6 +20,9 @@ const SHEET_CSV_URL = "YOUR_PUBLISHED_HOLDINGS_CSV_URL_HERE";
 
 // 2. Spreadsheet opened when the widget is tapped
 const SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=YOUR_TAB_GID";
+
+// Accent theme color (Emerald Green)
+const THEME_COLOR = "#30D158";
 
 const widget = await createWidget();
 Script.setWidget(widget);
@@ -49,7 +52,7 @@ async function createWidget() {
 
   const titleTxt = titleCol.addText("▲ PORTFOLIO HOLDINGS");
   titleTxt.font = Font.boldSystemFont(11);
-  titleTxt.textColor = new Color("#34A853");
+  titleTxt.textColor = new Color(THEME_COLOR);
 
   titleCol.addSpacer(2);
 
@@ -88,7 +91,7 @@ async function createWidget() {
 
   w.addSpacer(14);
 
-  // 3. Holdings List (Precision Grid Alignment)
+  // 3. Holdings List (Precision Grid Alignment, Emerald Green Theme)
   if (topItems.length === 0) {
     const emptyRow = w.addStack();
     emptyRow.addSpacer();
@@ -100,29 +103,23 @@ async function createWidget() {
     for (let i = 0; i < topItems.length; i++) {
       const item = topItems[i];
       const rank = i + 1;
-      const itemColor = getItemColor(item.name, i);
 
       const row = w.addStack();
       row.layoutHorizontally();
       row.centerAlignContent();
 
-      // ① Rank (#1, #2) - Fixed width 18px
+      // ① Rank (#1, #2) - Fixed width 20px
       const rankStack = row.addStack();
-      rankStack.size = new Size(18, 0);
+      rankStack.size = new Size(20, 0);
       const rankTxt = rankStack.addText(`#${rank}`);
       rankTxt.font = Font.boldSystemFont(9);
       rankTxt.textColor = new Color("#636366");
 
-      // ② Color Dot - Fixed width 12px
-      const dotStack = row.addStack();
-      dotStack.size = new Size(12, 0);
-      const dotTxt = dotStack.addText("•");
-      dotTxt.font = Font.boldSystemFont(11);
-      dotTxt.textColor = new Color(itemColor);
+      row.addSpacer(6);
 
-      // ③ Name - Fixed width 82px (ensures all progress bars start at exact same X position)
+      // ② Name - Fixed width 90px (expanded without dot)
       const nameStack = row.addStack();
-      nameStack.size = new Size(82, 0);
+      nameStack.size = new Size(90, 0);
       const nameTxt = nameStack.addText(item.name);
       nameTxt.font = Font.boldSystemFont(10);
       nameTxt.textColor = new Color("#FFFFFF");
@@ -130,16 +127,16 @@ async function createWidget() {
 
       row.addSpacer(8);
 
-      // ④ Progress Bar (Exact vertical alignment across all rows) - Fixed width 75px
+      // ③ Progress Bar (Emerald Green, Exact vertical alignment) - Fixed width 75px
       const barStack = row.addStack();
       barStack.size = new Size(75, 6);
-      const progressBar = drawProgressBar(item.pct, maxPct, itemColor, 75, 6);
+      const progressBar = drawProgressBar(item.pct, maxPct, THEME_COLOR, 75, 6);
       const barImg = barStack.addImage(progressBar);
       barImg.imageSize = new Size(75, 6);
 
       row.addSpacer(8);
 
-      // ⑤ Percentage (%) - Fixed width 42px right-aligned
+      // ④ Percentage (%) - Fixed width 42px right-aligned
       const pctStack = row.addStack();
       pctStack.size = new Size(42, 0);
       pctStack.addSpacer();
@@ -147,7 +144,7 @@ async function createWidget() {
       pctTxt.font = Font.boldSystemFont(10);
       pctTxt.textColor = new Color("#FFFFFF");
 
-      // ⑥ Amount - Fixed width 52px right-aligned
+      // ⑤ Amount - Fixed width 52px right-aligned
       const amtStack = row.addStack();
       amtStack.size = new Size(52, 0);
       amtStack.addSpacer();
@@ -201,31 +198,6 @@ function drawProgressBar(pct, maxPct, colorHex, width, height) {
   ctx.fillPath();
 
   return ctx.getImage();
-}
-
-/**
- * Dynamic color mapping
- */
-function getItemColor(name, index) {
-  if (name.includes("비트코인") || name.includes("이더리움") || name.includes("솔라나") || name.includes("CONL")) {
-    return "#F7931A";
-  }
-  if (name.includes("금") || name.includes("GLDM")) {
-    return "#FFD700";
-  }
-  if (name.includes("Kodex 200") || name.includes("한국") || name.includes("삼전") || name.includes("채권")) {
-    return "#34A853";
-  }
-  if (name.includes("나스닥") || name.includes("GOOGL") || name.includes("글로벌") || name.includes("배당다우") || 
-      name.includes("TQQQ") || name.includes("SOXL") || name.includes("DRAM") || name.includes("차이나")) {
-    return "#4285F4";
-  }
-  if (name.includes("보증금") || name.includes("청약") || name.includes("현금")) {
-    return "#8E8E93";
-  }
-
-  const palette = ["#5E9BFF", "#30D158", "#FF9F0A", "#BF5AF2", "#64D2FF", "#FF375F", "#AC8E68"];
-  return palette[index % palette.length];
 }
 
 function formatAmount(val) {
