@@ -5,6 +5,7 @@
 /**
  * 100% Dynamic Portfolio Holdings Visualization Widget for iOS Scriptable (Large 4x4)
  * - Dynamically parses '세부종목' (Holding Name) and '비중(평가금액의 SUM)' (Weight %) from Google Sheets CSV.
+ * - Top 15 Holdings full display (98.5% portfolio coverage).
  * - 0% Hardcoding: Unified Apple Emerald Green (#30D158) theme. No keyword color matching needed.
  * - Precision grid alignment: All progress bars start at the exact same vertical X-axis.
  * - Header refresh button (↻) and tap to open Google Sheet.
@@ -13,6 +14,9 @@
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
+
+// Number of holdings to display (Default: 15)
+const TOP_COUNT = 15;
 
 // 1. Published CSV URL of '포트폴리오 표' tab
 //    Google Sheets ▸ File ▸ Share ▸ Publish to web ▸ '포트폴리오 표' ▸ CSV
@@ -34,12 +38,12 @@ Script.complete();
 async function createWidget() {
   const w = new ListWidget();
   w.backgroundColor = new Color("#16171a");
-  w.setPadding(16, 16, 14, 16);
+  w.setPadding(10, 16, 8, 16);
 
   // 1. Load holdings dynamically
   const data = await fetchDynamicHoldings();
   const allItems = data.items;
-  const topItems = allItems.slice(0, 8); // Top 8 holdings
+  const topItems = allItems.slice(0, TOP_COUNT);
   const topSum = topItems.reduce((acc, cur) => acc + cur.pct, 0);
   const maxPct = topItems.length > 0 ? topItems[0].pct : 20.0;
 
@@ -51,13 +55,11 @@ async function createWidget() {
   titleCol.layoutVertically();
 
   const titleTxt = titleCol.addText("▲ PORTFOLIO HOLDINGS");
-  titleTxt.font = Font.boldSystemFont(11);
+  titleTxt.font = Font.boldSystemFont(10.5);
   titleTxt.textColor = new Color(THEME_COLOR);
 
-  titleCol.addSpacer(2);
-
-  const subTxt = titleCol.addText(`Top 8 비중 ${topSum.toFixed(1)}% · 총 ${allItems.length}개 종목`);
-  subTxt.font = Font.systemFont(9);
+  const subTxt = titleCol.addText(`Top ${topItems.length} 비중 ${topSum.toFixed(1)}% · 총 ${allItems.length}개 종목`);
+  subTxt.font = Font.systemFont(8.5);
   subTxt.textColor = new Color("#8E8E93");
 
   headerRow.addSpacer();
@@ -69,10 +71,10 @@ async function createWidget() {
   const timeRow = rightCol.addStack();
   timeRow.addSpacer();
   const timeTxt = timeRow.addText(formatCurrentTime());
-  timeTxt.font = Font.systemFont(9);
+  timeTxt.font = Font.systemFont(8);
   timeTxt.textColor = new Color("#8E8E93");
 
-  rightCol.addSpacer(3);
+  rightCol.addSpacer(2);
 
   const btnRow = rightCol.addStack();
   btnRow.addSpacer();
@@ -80,23 +82,23 @@ async function createWidget() {
   const refreshBtn = btnRow.addStack();
   refreshBtn.backgroundColor = new Color("#25262B");
   refreshBtn.cornerRadius = 4;
-  refreshBtn.setPadding(2, 6, 2, 6);
+  refreshBtn.setPadding(2, 5, 2, 5);
 
   const scriptName = Script.name() || "holdings widget";
   refreshBtn.url = "scriptable:///run?scriptName=" + encodeURIComponent(scriptName);
 
   const refreshTxt = refreshBtn.addText("↻ 갱신");
-  refreshTxt.font = Font.boldSystemFont(8);
+  refreshTxt.font = Font.boldSystemFont(7.5);
   refreshTxt.textColor = new Color("#FFFFFF");
 
-  w.addSpacer(14);
+  w.addSpacer(6);
 
-  // 3. Holdings List (Precision Grid Alignment, Emerald Green Theme)
+  // 3. Holdings List (Top 15 Precision Grid Alignment)
   if (topItems.length === 0) {
     const emptyRow = w.addStack();
     emptyRow.addSpacer();
     const emptyTxt = emptyRow.addText("구글 시트 CSV 링크를 연결해 주세요");
-    emptyTxt.font = Font.systemFont(10);
+    emptyTxt.font = Font.systemFont(9.5);
     emptyTxt.textColor = new Color("#8E8E93");
     emptyRow.addSpacer();
   } else {
@@ -108,55 +110,57 @@ async function createWidget() {
       row.layoutHorizontally();
       row.centerAlignContent();
 
-      // ① Rank (#1, #2) - Fixed width 20px
+      // ① Rank (#1 ~ #15) - Fixed width 22px
       const rankStack = row.addStack();
-      rankStack.size = new Size(20, 0);
+      rankStack.size = new Size(22, 0);
       const rankTxt = rankStack.addText(`#${rank}`);
-      rankTxt.font = Font.boldSystemFont(9);
+      rankTxt.font = Font.boldSystemFont(8);
       rankTxt.textColor = new Color("#636366");
 
-      row.addSpacer(6);
+      row.addSpacer(5);
 
-      // ② Name - Fixed width 90px (expanded without dot)
+      // ② Name - Fixed width 88px
       const nameStack = row.addStack();
-      nameStack.size = new Size(90, 0);
+      nameStack.size = new Size(88, 0);
       const nameTxt = nameStack.addText(item.name);
-      nameTxt.font = Font.boldSystemFont(10);
+      nameTxt.font = Font.boldSystemFont(9);
       nameTxt.textColor = new Color("#FFFFFF");
       nameTxt.lineLimit = 1;
 
-      row.addSpacer(8);
+      row.addSpacer(7);
 
-      // ③ Progress Bar (Emerald Green, Exact vertical alignment) - Fixed width 75px
+      // ③ Progress Bar (Emerald Green, Exact vertical alignment) - Fixed width 72px
       const barStack = row.addStack();
-      barStack.size = new Size(75, 6);
-      const progressBar = drawProgressBar(item.pct, maxPct, THEME_COLOR, 75, 6);
+      barStack.size = new Size(72, 4.5);
+      const progressBar = drawProgressBar(item.pct, maxPct, THEME_COLOR, 72, 4.5);
       const barImg = barStack.addImage(progressBar);
-      barImg.imageSize = new Size(75, 6);
+      barImg.imageSize = new Size(72, 4.5);
 
-      row.addSpacer(8);
+      row.addSpacer(7);
 
-      // ④ Percentage (%) - Fixed width 42px right-aligned
+      // ④ Percentage (%) - Fixed width 38px right-aligned
       const pctStack = row.addStack();
-      pctStack.size = new Size(42, 0);
+      pctStack.size = new Size(38, 0);
       pctStack.addSpacer();
       const pctTxt = pctStack.addText(`${item.pct.toFixed(1)}%`);
-      pctTxt.font = Font.boldSystemFont(10);
+      pctTxt.font = Font.boldSystemFont(9);
       pctTxt.textColor = new Color("#FFFFFF");
 
-      // ⑤ Amount - Fixed width 52px right-aligned
+      // ⑤ Amount - Fixed width 48px right-aligned
       const amtStack = row.addStack();
-      amtStack.size = new Size(52, 0);
+      amtStack.size = new Size(48, 0);
       amtStack.addSpacer();
       const amtTxt = amtStack.addText(formatAmount(item.amt));
-      amtTxt.font = Font.systemFont(9);
+      amtTxt.font = Font.systemFont(8);
       amtTxt.textColor = new Color("#8E8E93");
 
-      w.addSpacer(5);
+      if (i < topItems.length - 1) {
+        w.addSpacer(2.0);
+      }
     }
   }
 
-  w.addSpacer(8);
+  w.addSpacer(5);
 
   // 4. Footer
   const footerRow = w.addStack();
@@ -165,7 +169,7 @@ async function createWidget() {
   const othersPct = Math.max(0, 100 - topSum).toFixed(1);
   const otherCount = Math.max(0, allItems.length - topItems.length);
   const footerTxt = footerRow.addText(`기타 ${otherCount}개 세부종목 (${othersPct}%) · 터치하여 시트 열기`);
-  footerTxt.font = Font.systemFont(9);
+  footerTxt.font = Font.systemFont(8);
   footerTxt.textColor = new Color("#636366");
 
   w.url = SHEET_EDIT_URL;
@@ -222,7 +226,12 @@ async function fetchDynamicHoldings() {
       { name: "보증금",       pct: 7.13,  amt: 16000000 },
       { name: "이더리움",     pct: 6.83,  amt: 15335000 },
       { name: "Time 글로벌AI", pct: 5.96, amt: 13365000 },
-      { name: "배당다우",     pct: 5.55,  amt: 12444000 }
+      { name: "배당다우",     pct: 5.55,  amt: 12444000 },
+      { name: "청약저축",     pct: 4.46,  amt: 10000000 },
+      { name: "GLDM",         pct: 3.44,  amt: 7720000 },
+      { name: "TQQQ",         pct: 3.20,  amt: 7180000 },
+      { name: "SOXL",         pct: 2.82,  amt: 6330000 },
+      { name: "DRAM",         pct: 2.40,  amt: 5380000 }
     ]
   };
 
