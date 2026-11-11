@@ -215,30 +215,34 @@ async function createWidget() {
 }
 
 async function fetchSheetData() {
-  const fallback = {
-    totalInvested: "₩253.5M",
-    netAsset: "₩224.3M",
-    debt: "59.8M",
-    ytdReturn: "-6.56%",
-    ytdProfit: "-₩25.6M",
-    totalReturn: "+3.53%",
-    totalProfit: "+₩15.7M",
-    alloc: {
-      "미국주식": { current: "49.4%", target: "50.0%" },
-      "세계주식": { current: "20.3%", target: "20.0%" },
-      "암호화폐": { current: "20.3%", target: "20.0%" },
-      "금":       { current: "10.0%", target: "10.0%" }
-    }
-  };
+  const fm = (typeof FileManager !== "undefined") ? FileManager.local() : null;
+  const cachePath = fm ? fm.joinPath(fm.cacheDirectory(), "dohn_asset_data_cache.json") : "";
+
+  let cached = null;
+  if (fm && cachePath && fm.fileExists(cachePath)) {
+    try {
+      cached = JSON.parse(fm.readString(cachePath));
+    } catch (e) {}
+  }
 
   if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("YOUR_PUBLISHED_CSV_URL_HERE")) {
-    return fallback;
+    if (cached) return cached;
+    return {
+      totalInvested: "₩0.0M",
+      netAsset: "₩0.0M",
+      debt: "0.0M",
+      ytdReturn: "0.00%",
+      ytdProfit: "₩0.0M",
+      totalReturn: "0.00%",
+      totalProfit: "₩0.0M",
+      alloc: {}
+    };
   }
 
   try {
     const cacheBuster = (SHEET_CSV_URL.includes("?") ? "&" : "?") + "_t=" + Date.now();
     const req = new Request(SHEET_CSV_URL + cacheBuster);
-    req.timeoutInterval = 7;
+    req.timeoutInterval = 8;
     req.headers = {
       "Cache-Control": "no-cache, no-store, must-revalidate",
       "Pragma": "no-cache",
@@ -247,7 +251,8 @@ async function fetchSheetData() {
 
     const csv = await req.loadString();
     if (!csv || csv.includes("Unauthorized") || csv.includes("<!DOCTYPE html>")) {
-      return fallback;
+      if (cached) return cached;
+      throw new Error("Invalid CSV response");
     }
 
     const lines = csv.split(/\r?\n/).map(line => {
@@ -270,16 +275,19 @@ async function fetchSheetData() {
     let ytdProfitStr = "";
     let itdReturnStr = "";
     let itdProfitStr = "";
+    let itdProfitVal = 0;
+    let ytdBaseProfitVal = 0;
     const alloc = {};
 
-    // 1. Time-series performance table (headers: 순자산, YTD 수익률, YTD 수익, 수익률, 수익)
+    // 1. Time-series performance table (headers: 날짜, 순자산, YTD 수익률, YTD 수익, 수익률, 수익)
     for (let r = 0; r < lines.length; r++) {
       const row = lines[r];
-      let netCol = -1, ytdRetCol = -1, ytdProfCol = -1, itdRetCol = -1, itdProfCol = -1;
+      let netCol = -1, ytdRetCol = -1, ytdProfCol = -1, itdRetCol = -1, itdProfCol = -1, dateCol = -1;
 
       for (let c = 0; c < row.length; c++) {
         const h = row[c].trim();
-        if (h === "순자산") netCol = c;
+        if (h === "날짜") dateCol = c;
+        else if (h === "순자산") netCol = c;
         else if (h === "YTD 수익률") ytdRetCol = c;
         else if (h === "YTD 수익") ytdProfCol = c;
         else if (h === "수익률") itdRetCol = c;
@@ -288,27 +296,95 @@ async function fetchSheetData() {
 
       if (netCol !== -1 && r + 1 < lines.length) {
         const nextRow = lines[r + 1];
-        const candNet = parseMoney(nextRow[netCol]);
-        if (candNet > 10000000) {
-          netAssetVal = candNet;
-          if (ytdRetCol !== -1 && nextRow[ytdRetCol]) {
-            ytdReturnStr = formatPct(nextRow[ytdRetCol]);
-          }
-          if (ytdProfCol !== -1 && nextRow[ytdProfCol]) {
-            ytdProfitStr = formatAmountM(parseMoney(nextRow[ytdProfCol]), true);
-          }
-          if (itdRetCol !== -1 && nextRow[itdRetCol]) {
-            itdReturnStr = formatPct(nextRow[itdRetCol]);
-          }
-          if (itdProfCol !== -1 && nextRow[itdProfCol]) {
-            itdProfitStr = formatAmountM(parseMoney(nextRow[itdProfCol]), true);
-          }
-          break;
+        if (netCol < nextRow.length) {
+          const candNet = parseMoney(nextRow[netCol]);
+          if (candNet > 10000000) netAssetVal = candNet;
         }
+        if (ytdRetCol !== -1 && ytdRetCol < nextRow.length && !nextRow[ytdRetCol].includes("로드")) {
+          const s = formatPct(nextRow[ytdRetCol]);
+          if (s) ytdReturnStr = s;
+        }
+        if (ytdProfCol !== -1 && ytdProfCol < nextRow.length && !nextRow[ytdProfCol].includes("로드")) {
+          const m = parseMoney(nextRow[ytdProfCol]);
+          if (m !== 0) ytdProfitStr = formatAmountM(m, true);
+        }
+        if (itdRetCol !== -1 && itdRetCol < nextRow.length && !nextRow[itdRetCol].includes("로드")) {
+          const s = formatPct(nextRow[itdRetCol]);
+          if (s) itdReturnStr = s;
+        }
+        if (itdProfCol !== -1 && itdProfCol < nextRow.length && !nextRow[itdProfCol].includes("로드")) {
+          const m = parseMoney(nextRow[itdProfCol]);
+          if (m !== 0) {
+            itdProfitVal = m;
+            itdProfitStr = formatAmountM(m, true);
+          }
+        }
+
+        // Scan subsequent historical rows for baseline profit of previous year-end (e.g., 2025. 12. 31)
+        if (dateCol !== -1 && itdProfCol !== -1) {
+          const prevYear = (new Date().getFullYear() - 1).toString();
+          for (let tr = r + 1; tr < lines.length; tr++) {
+            const tRow = lines[tr];
+            if (dateCol < tRow.length && (tRow[dateCol].includes(prevYear + ". 12") || tRow[dateCol].includes("2025. 12"))) {
+              if (itdProfCol < tRow.length) {
+                const baseM = parseMoney(tRow[itdProfCol]);
+                if (baseM !== 0) {
+                  ytdBaseProfitVal = baseM;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        break;
       }
     }
 
-    // 2. 4 Core Asset Allocation (미국주식, 세계주식, 암호화폐, 금)
+    // 2. Account summary table (headers: 계좌, 평가액, 비중, 수익, 수익률, 월 수익률, YTD 수익률)
+    // Infallible live source for current returns and evaluation
+    for (let r = 0; r < lines.length; r++) {
+      const row = lines[r];
+      let accCol = -1;
+      for (let c = 0; c < row.length; c++) {
+        if (row[c].trim() === "계좌" && c > 4) { accCol = c; break; }
+      }
+      if (accCol !== -1) {
+        for (let tr = r + 1; tr < Math.min(r + 25, lines.length); tr++) {
+          const sRow = lines[tr];
+          if (accCol < sRow.length && sRow[accCol].trim() === "총합") {
+            // accCol + 1: 평가액, +3: 수익, +4: 수익률, +6: YTD 수익률
+            if (accCol + 1 < sRow.length && !sRow[accCol + 1].includes("로드")) {
+              const cNet = parseMoney(sRow[accCol + 1]);
+              if (cNet > 10000000 && netAssetVal === 0) netAssetVal = cNet;
+            }
+            if (accCol + 3 < sRow.length && !sRow[accCol + 3].includes("로드")) {
+              const pVal = parseMoney(sRow[accCol + 3]);
+              if (pVal !== 0) {
+                if (itdProfitVal === 0) itdProfitVal = pVal;
+                if (!itdProfitStr) itdProfitStr = formatAmountM(pVal, true);
+              }
+            }
+            if (accCol + 4 < sRow.length && !sRow[accCol + 4].includes("로드") && !itdReturnStr) {
+              const s = formatPct(sRow[accCol + 4]);
+              if (s) itdReturnStr = s;
+            }
+            if (accCol + 6 < sRow.length && !sRow[accCol + 6].includes("로드") && !ytdReturnStr) {
+              const s = formatPct(sRow[accCol + 6]);
+              if (s) ytdReturnStr = s;
+            }
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    // If ytdProfitStr could not be read directly from time-series row, derive it: ITD Profit - Previous Year-End Profit
+    if (!ytdProfitStr && itdProfitVal !== 0 && ytdBaseProfitVal !== 0) {
+      ytdProfitStr = formatAmountM(itdProfitVal - ytdBaseProfitVal, true);
+    }
+
+    // 3. 4 Core Asset Allocation (미국주식, 세계주식, 암호화폐, 금)
     let summaryCol = -1;
     let investWeightCol = -1;
     let targetWeightCol = -1;
@@ -341,13 +417,13 @@ async function fetchSheetData() {
       if (["미국주식", "세계주식", "암호화폐", "금"].includes(catName)) {
         let curPct = "0.0%";
         let tgtPct = "0.0%";
-        if (row.length > investWeightCol && row[investWeightCol]) curPct = row[investWeightCol].trim();
-        if (row.length > targetWeightCol && row[targetWeightCol]) tgtPct = row[targetWeightCol].trim();
+        if (row.length > investWeightCol && row[investWeightCol] && !row[investWeightCol].includes("로드")) curPct = row[investWeightCol].trim();
+        if (row.length > targetWeightCol && row[targetWeightCol] && !row[targetWeightCol].includes("로드")) tgtPct = row[targetWeightCol].trim();
         alloc[catName] = { current: curPct, target: tgtPct };
       }
     }
 
-    // 3. Scan sheet for totalInvestedVal, debtVal, and netAssetVal fallback
+    // 4. Scan sheet for totalInvestedVal, debtVal, and netAssetVal fallback
     for (let r = 0; r < lines.length; r++) {
       const row = lines[r];
       for (let c = 0; c < row.length; c++) {
@@ -373,23 +449,46 @@ async function fetchSheetData() {
       }
     }
 
-    return {
-      totalInvested: formatAmountM(totalInvestedVal || 253500000),
-      netAsset: formatAmountM(netAssetVal || 224300000),
-      debt: `${((debtVal || 59800000) / 1e6).toFixed(1)}M`,
-      ytdReturn: ytdReturnStr || "-6.56%",
-      ytdProfit: ytdProfitStr || "-₩25.6M",
-      totalReturn: itdReturnStr || "+3.53%",
-      totalProfit: itdProfitStr || "+₩15.7M",
-      alloc: Object.keys(alloc).length > 0 ? alloc : fallback.alloc
+    const result = {
+      totalInvested: totalInvestedVal > 0 ? formatAmountM(totalInvestedVal) : (cached ? cached.totalInvested : "₩0.0M"),
+      netAsset: netAssetVal > 0 ? formatAmountM(netAssetVal) : (cached ? cached.netAsset : "₩0.0M"),
+      debt: debtVal > 0 ? `${(debtVal / 1e6).toFixed(1)}M` : (cached ? cached.debt : "0.0M"),
+      ytdReturn: ytdReturnStr || (cached ? cached.ytdReturn : "0.00%"),
+      ytdProfit: ytdProfitStr || (cached ? cached.ytdProfit : "₩0.0M"),
+      totalReturn: itdReturnStr || (cached ? cached.totalReturn : "0.00%"),
+      totalProfit: itdProfitStr || (cached ? cached.totalProfit : "₩0.0M"),
+      alloc: Object.keys(alloc).length > 0 ? alloc : (cached && cached.alloc ? cached.alloc : {
+        "미국주식": { current: "50.0%", target: "50.0%" },
+        "세계주식": { current: "20.0%", target: "20.0%" },
+        "암호화폐": { current: "20.0%", target: "20.0%" },
+        "금":       { current: "10.0%", target: "10.0%" }
+      })
     };
+
+    if (fm && cachePath && netAssetVal > 0 && ytdReturnStr) {
+      try {
+        fm.writeString(cachePath, JSON.stringify(result));
+      } catch (e) {}
+    }
+
+    return result;
   } catch (e) {
-    return fallback;
+    if (cached) return cached;
+    return {
+      totalInvested: "₩0.0M",
+      netAsset: "₩0.0M",
+      debt: "0.0M",
+      ytdReturn: "0.00%",
+      ytdProfit: "₩0.0M",
+      totalReturn: "0.00%",
+      totalProfit: "₩0.0M",
+      alloc: {}
+    };
   }
 }
 
 function parseMoney(str) {
-  if (!str) return 0;
+  if (!str || typeof str !== "string" || str.includes("로드")) return 0;
   const cleaned = str.replace(/[₩,\s]/g, "");
   const val = parseFloat(cleaned);
   return isNaN(val) ? 0 : val;
@@ -403,7 +502,7 @@ function formatAmountM(val, withSign = false) {
 }
 
 function formatPct(str) {
-  if (!str) return "";
+  if (!str || typeof str !== "string" || str.includes("로드")) return "";
   const cleaned = str.replace(/[%,\s]/g, "");
   const val = parseFloat(cleaned);
   if (isNaN(val)) return str.trim();
