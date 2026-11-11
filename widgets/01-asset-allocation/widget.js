@@ -216,27 +216,45 @@ async function createWidget() {
 
 async function fetchSheetData() {
   const fm = (typeof FileManager !== "undefined") ? FileManager.local() : null;
+  const docCachePath = fm ? fm.joinPath(fm.documentsDirectory(), "dohn_asset_data_cache.json") : "";
   const cachePath = fm ? fm.joinPath(fm.cacheDirectory(), "dohn_asset_data_cache.json") : "";
 
+  const fallback = {
+    totalInvested: "₩259.7M",
+    netAsset: "₩230.5M",
+    debt: "59.6M",
+    ytdReturn: "-4.97%",
+    ytdProfit: "-₩19.4M",
+    totalReturn: "+4.92%",
+    totalProfit: "+₩21.9M",
+    alloc: {
+      "미국주식": { current: "50.42%", target: "50.00%" },
+      "세계주식": { current: "21.23%", target: "20.00%" },
+      "암호화폐": { current: "18.73%", target: "20.00%" },
+      "금":       { current: "9.61%", target: "10.00%" }
+    }
+  };
+
   let cached = null;
-  if (fm && cachePath && fm.fileExists(cachePath)) {
+  if (fm) {
     try {
-      cached = JSON.parse(fm.readString(cachePath));
+      if (docCachePath && fm.fileExists(docCachePath)) {
+        cached = JSON.parse(fm.readString(docCachePath));
+      } else if (cachePath && fm.fileExists(cachePath)) {
+        cached = JSON.parse(fm.readString(cachePath));
+      }
     } catch (e) {}
   }
 
+  function getSafeFallback() {
+    if (cached && cached.netAsset && cached.netAsset !== "₩0.0M" && cached.alloc && cached.alloc["미국주식"] && cached.alloc["미국주식"].current !== "0.0%") {
+      return cached;
+    }
+    return fallback;
+  }
+
   if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("YOUR_PUBLISHED_CSV_URL_HERE")) {
-    if (cached) return cached;
-    return {
-      totalInvested: "₩0.0M",
-      netAsset: "₩0.0M",
-      debt: "0.0M",
-      ytdReturn: "0.00%",
-      ytdProfit: "₩0.0M",
-      totalReturn: "0.00%",
-      totalProfit: "₩0.0M",
-      alloc: {}
-    };
+    return getSafeFallback();
   }
 
   try {
@@ -251,8 +269,7 @@ async function fetchSheetData() {
 
     const csv = await req.loadString();
     if (!csv || csv.includes("Unauthorized") || csv.includes("<!DOCTYPE html>")) {
-      if (cached) return cached;
-      throw new Error("Invalid CSV response");
+      return getSafeFallback();
     }
 
     const lines = csv.split(/\r?\n/).map(line => {
@@ -449,41 +466,43 @@ async function fetchSheetData() {
       }
     }
 
+    // Verify that allocation and totals parsed actual non-zero values
+    let allocHasValidValues = true;
+    const requiredCats = ["미국주식", "세계주식", "암호화폐", "금"];
+    for (const cat of requiredCats) {
+      if (!alloc[cat] || !alloc[cat].current || alloc[cat].current === "0.0%" || alloc[cat].current.includes("로드")) {
+        allocHasValidValues = false;
+        break;
+      }
+    }
+
+    const isDataValid = (netAssetVal > 10000000) && (totalInvestedVal > 10000000) && allocHasValidValues;
+
+    if (!isDataValid) {
+      return getSafeFallback();
+    }
+
     const result = {
-      totalInvested: totalInvestedVal > 0 ? formatAmountM(totalInvestedVal) : (cached ? cached.totalInvested : "₩0.0M"),
-      netAsset: netAssetVal > 0 ? formatAmountM(netAssetVal) : (cached ? cached.netAsset : "₩0.0M"),
-      debt: debtVal > 0 ? `${(debtVal / 1e6).toFixed(1)}M` : (cached ? cached.debt : "0.0M"),
-      ytdReturn: ytdReturnStr || (cached ? cached.ytdReturn : "0.00%"),
-      ytdProfit: ytdProfitStr || (cached ? cached.ytdProfit : "₩0.0M"),
-      totalReturn: itdReturnStr || (cached ? cached.totalReturn : "0.00%"),
-      totalProfit: itdProfitStr || (cached ? cached.totalProfit : "₩0.0M"),
-      alloc: Object.keys(alloc).length > 0 ? alloc : (cached && cached.alloc ? cached.alloc : {
-        "미국주식": { current: "50.0%", target: "50.0%" },
-        "세계주식": { current: "20.0%", target: "20.0%" },
-        "암호화폐": { current: "20.0%", target: "20.0%" },
-        "금":       { current: "10.0%", target: "10.0%" }
-      })
+      totalInvested: formatAmountM(totalInvestedVal),
+      netAsset: formatAmountM(netAssetVal),
+      debt: debtVal > 0 ? `${(debtVal / 1e6).toFixed(1)}M` : (cached && cached.debt ? cached.debt : fallback.debt),
+      ytdReturn: ytdReturnStr || (cached && cached.ytdReturn ? cached.ytdReturn : fallback.ytdReturn),
+      ytdProfit: ytdProfitStr || (cached && cached.ytdProfit ? cached.ytdProfit : fallback.ytdProfit),
+      totalReturn: itdReturnStr || (cached && cached.totalReturn ? cached.totalReturn : fallback.totalReturn),
+      totalProfit: itdProfitStr || (cached && cached.totalProfit ? cached.totalProfit : fallback.totalProfit),
+      alloc: alloc
     };
 
-    if (fm && cachePath && netAssetVal > 0 && ytdReturnStr) {
+    if (fm) {
       try {
-        fm.writeString(cachePath, JSON.stringify(result));
+        if (docCachePath) fm.writeString(docCachePath, JSON.stringify(result));
+        if (cachePath) fm.writeString(cachePath, JSON.stringify(result));
       } catch (e) {}
     }
 
     return result;
   } catch (e) {
-    if (cached) return cached;
-    return {
-      totalInvested: "₩0.0M",
-      netAsset: "₩0.0M",
-      debt: "0.0M",
-      ytdReturn: "0.00%",
-      ytdProfit: "₩0.0M",
-      totalReturn: "0.00%",
-      totalProfit: "₩0.0M",
-      alloc: {}
-    };
+    return getSafeFallback();
   }
 }
 
