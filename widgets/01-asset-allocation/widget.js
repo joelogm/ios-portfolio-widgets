@@ -120,7 +120,13 @@ async function createWidget() {
   subLabel.font = Font.systemFont(9);
   subLabel.textColor = new Color("#A1A1A6");
 
-  leftCol.addSpacer(5);
+  leftCol.addSpacer(1.5);
+
+  const ratioLabel = leftCol.addText(`부채비율 ${d.debtRatio || "25.9%"}`);
+  ratioLabel.font = Font.systemFont(8.5);
+  ratioLabel.textColor = new Color("#8E8E93");
+
+  leftCol.addSpacer(4);
 
   // 1. YTD
   const ytdRow = leftCol.addStack();
@@ -223,6 +229,7 @@ async function fetchSheetData() {
     totalInvested: "₩259.7M",
     netAsset: "₩230.5M",
     debt: "59.6M",
+    debtRatio: "25.9%",
     ytdReturn: "-4.97%",
     ytdProfit: "-₩19.4M",
     totalReturn: "+4.92%",
@@ -482,10 +489,19 @@ async function fetchSheetData() {
       return getSafeFallback();
     }
 
+    let debtRatioStr = fallback.debtRatio;
+    if (netAssetVal > 0 && debtVal > 0) {
+      const r = (debtVal / netAssetVal) * 100;
+      debtRatioStr = `${r.toFixed(1)}%`;
+    } else if (cached && cached.debtRatio) {
+      debtRatioStr = cached.debtRatio;
+    }
+
     const result = {
       totalInvested: formatAmountM(totalInvestedVal),
       netAsset: formatAmountM(netAssetVal),
       debt: debtVal > 0 ? `${(debtVal / 1e6).toFixed(1)}M` : (cached && cached.debt ? cached.debt : fallback.debt),
+      debtRatio: debtRatioStr,
       ytdReturn: ytdReturnStr || (cached && cached.ytdReturn ? cached.ytdReturn : fallback.ytdReturn),
       ytdProfit: ytdProfitStr || (cached && cached.ytdProfit ? cached.ytdProfit : fallback.ytdProfit),
       totalReturn: itdReturnStr || (cached && cached.totalReturn ? cached.totalReturn : fallback.totalReturn),
